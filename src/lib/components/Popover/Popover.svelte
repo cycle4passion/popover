@@ -266,11 +266,17 @@
 	bind:this={popoverEl}
 	data-popover
 	data-popover-group={group || undefined}
-	data-resize={resize || undefined}
 	data-arrow={showArrow || undefined}
 	data-effective-side={showArrow ? effectiveSide : undefined}
 	popover="manual"
-	class={cls('Popover bg-transparent', `placement-${placement}`, className)}
+	class={cls(
+		autoPlacement && 'anchorPositioned',
+		'Popover bg-transparent',
+		`placement-${placement}`,
+		(resize === true || resize === 'width') && 'resize-width',
+		(resize === true || resize === 'height') && 'resize-height',
+		className
+	)}
 	style={cls(
 		`position-anchor: ${anchorName}; --popover-offset: ${offset}px;`,
 		arrowSize && `--arrow-size:${arrowSizePx[arrowSize]}px;`,
@@ -330,16 +336,10 @@
 	}
 
 	/* width resize: pin inline edge to viewport; overflow on inner div to avoid transition scrollbars */
-	:is(.placement-right, .placement-right-start, .placement-right-end):is(
-		[data-resize='true'],
-		[data-resize='width']
-	) {
+	:is(.placement-right, .placement-right-start, .placement-right-end).resize-width {
 		inset-inline-end: 8px;
 	}
-	:is(.placement-left, .placement-left-start, .placement-left-end):is(
-		[data-resize='true'],
-		[data-resize='width']
-	) {
+	:is(.placement-left, .placement-left-start, .placement-left-end).resize-width {
 		inset-inline-start: 8px;
 	}
 	:is(
@@ -349,21 +349,15 @@
 		.placement-bottom,
 		.placement-bottom-start,
 		.placement-bottom-end
-	):is([data-resize='true'], [data-resize='width']) {
+	).resize-width {
 		inset-inline: 8px;
 	}
 
 	/* height resize: pin block edge to viewport */
-	:is(.placement-bottom, .placement-bottom-start, .placement-bottom-end):is(
-		[data-resize='true'],
-		[data-resize='height']
-	) {
+	:is(.placement-bottom, .placement-bottom-start, .placement-bottom-end).resize-height {
 		inset-block-end: 8px;
 	}
-	:is(.placement-top, .placement-top-start, .placement-top-end):is(
-		[data-resize='true'],
-		[data-resize='height']
-	) {
+	:is(.placement-top, .placement-top-start, .placement-top-end).resize-height {
 		inset-block-start: 8px;
 	}
 	:is(
@@ -373,43 +367,41 @@
 		.placement-right,
 		.placement-right-start,
 		.placement-right-end
-	):is([data-resize='true'], [data-resize='height']) {
+	).resize-height {
 		inset-block: 8px;
 	}
 
 	/* scroll on the inner div — popover keeps overflow:clip so transitions don't create scrollbars */
-	[data-resize='true'] > div,
-	[data-resize='width'] > div {
+	.resize-width > div {
 		width: 100%;
 		overflow-x: auto;
 	}
-	[data-resize='true'] > div,
-	[data-resize='height'] > div {
+	.resize-height > div {
 		height: 100%;
 		overflow-y: auto;
 	}
 
-	.placement-top {
+	.anchorPositioned.placement-top {
 		position-area: top;
 		position-try-fallbacks: flip-block;
 		margin-block-end: var(--_popover-margin);
 	}
-	.placement-bottom {
+	.anchorPositioned.placement-bottom {
 		position-area: bottom;
 		position-try-fallbacks: flip-block;
 		margin-block-start: var(--_popover-margin);
 	}
-	.placement-left {
+	.anchorPositioned.placement-left {
 		position-area: left;
 		position-try-fallbacks: flip-inline;
 		margin-inline-end: var(--_popover-margin);
 	}
-	.placement-right {
+	.anchorPositioned.placement-right {
 		position-area: right;
 		position-try-fallbacks: flip-inline;
 		margin-inline-start: var(--_popover-margin);
 	}
-	.placement-top-start {
+	.anchorPositioned.placement-top-start {
 		position-area: top span-right;
 		justify-self: start;
 		position-try-fallbacks:
@@ -418,7 +410,7 @@
 			flip-inline flip-block;
 		margin-block-end: var(--_popover-margin);
 	}
-	.placement-top-end {
+	.anchorPositioned.placement-top-end {
 		position-area: top span-left;
 		justify-self: end;
 		position-try-fallbacks:
@@ -427,7 +419,7 @@
 			flip-inline flip-block;
 		margin-block-end: var(--_popover-margin);
 	}
-	.placement-bottom-start {
+	.anchorPositioned.placement-bottom-start {
 		position-area: bottom span-right;
 		justify-self: start;
 		position-try-fallbacks:
@@ -436,7 +428,7 @@
 			flip-inline flip-block;
 		margin-block-start: var(--_popover-margin);
 	}
-	.placement-bottom-end {
+	.anchorPositioned.placement-bottom-end {
 		position-area: bottom span-left;
 		justify-self: end;
 		position-try-fallbacks:
@@ -445,7 +437,7 @@
 			flip-inline flip-block;
 		margin-block-start: var(--_popover-margin);
 	}
-	.placement-left-start {
+	.anchorPositioned.placement-left-start {
 		position-area: left span-bottom;
 		align-self: start;
 		position-try-fallbacks:
@@ -454,7 +446,7 @@
 			flip-block flip-inline;
 		margin-inline-end: var(--_popover-margin);
 	}
-	.placement-left-end {
+	.anchorPositioned.placement-left-end {
 		position-area: left span-top;
 		align-self: end;
 		position-try-fallbacks:
@@ -463,7 +455,7 @@
 			flip-block flip-inline;
 		margin-inline-end: var(--_popover-margin);
 	}
-	.placement-right-start {
+	.anchorPositioned.placement-right-start {
 		position-area: right span-bottom;
 		align-self: start;
 		position-try-fallbacks:
@@ -472,7 +464,7 @@
 			flip-block flip-inline;
 		margin-inline-start: var(--_popover-margin);
 	}
-	.placement-right-end {
+	.anchorPositioned.placement-right-end {
 		position-area: right span-top;
 		align-self: end;
 		position-try-fallbacks:

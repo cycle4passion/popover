@@ -5,9 +5,10 @@
 	import type { ArrowSize } from '$lib/components/Popover/Arrow.svelte';
 	import { fade, fly, slide, scale } from 'svelte/transition';
 	import type { TransitionConfig } from 'svelte/transition';
-	import { Button, ThemeSwitch } from 'svelte-ux';
+	import { Button } from 'svelte-ux';
 	import { Popover as PopoverOld } from 'svelte-ux';
 	import { Toggle } from 'svelte-ux';
+	import Controls, { type TransitionKey } from './Controls.svelte';
 
 	/* 	let open = $state(false); */
 
@@ -201,7 +202,7 @@
 	let arrow = $state(true);
 	let arrowSize = $state<ArrowSize>('md');
 	let resize = $state<boolean | 'width' | 'height'>(false);
-	let transitionKey = $state<'default' | 'fade' | 'fly' | 'slide' | 'scale' | 'none'>('default');
+	let transitionKey = $state<TransitionKey>('default');
 
 	const noop = (): TransitionConfig => ({ duration: 0 });
 	const transitions: Record<string, TransitionFn | undefined> = {
@@ -234,113 +235,26 @@
 </script>
 
 <div class="flex flex-col bg-gray-50" data-popover-ignore>
-	<div
-		class="fixed top-0 right-0 left-0 z-10 flex flex-wrap items-center justify-center gap-3 bg-gray-50/90 p-4 backdrop-blur"
-		data-popover-ignore
-	>
-		<!-- Trigger -->
-		<div class="flex gap-1 rounded-xl bg-white p-1 shadow ring-1 ring-black/10">
-			{#each ['click', 'hover'] as t (t)}
-				<button
-					onclick={() => setTrigger(t as TriggerBy)}
-					class="rounded-lg px-4 py-2 text-sm font-medium transition-colors {triggerBy === t
-						? 'bg-indigo-500 text-white shadow-sm'
-						: 'text-gray-600 hover:bg-gray-100'}"
-				>
-					{t}
-				</button>
-			{/each}
-		</div>
-
-		<!-- Offset -->
-		<div class="flex items-center gap-3 rounded-xl bg-white px-4 py-2 shadow ring-1 ring-black/10">
-			<label for="offset-slider" class="text-sm font-medium text-gray-600">Offset</label>
-			<input
-				id="offset-slider"
-				type="range"
-				min="0"
-				max="40"
-				bind:value={offset}
-				class="w-24 accent-indigo-500"
-			/>
-			<span class="w-8 text-right text-sm text-gray-600 tabular-nums">{offset}px</span>
-		</div>
-
-		<!-- Transition -->
-		<div class="flex items-center gap-2 rounded-xl bg-white px-4 py-2 shadow ring-1 ring-black/10">
-			<label for="transition-select" class="text-sm font-medium text-gray-600">Transition</label>
-			<select
-				id="transition-select"
-				bind:value={transitionKey}
-				class="rounded-md border-0 bg-gray-100 px-2 py-1 text-sm text-gray-700 focus:ring-2 focus:ring-indigo-500"
-			>
-				{#each Object.keys(transitions) as t (t)}
-					<option value={t}>{t}</option>
-				{/each}
-			</select>
-		</div>
-
-		<!-- Resize -->
-		<div class="flex items-center gap-2 rounded-xl bg-white px-4 py-2 shadow ring-1 ring-black/10">
-			<label for="resize-select" class="text-sm font-medium text-gray-600">Resize</label>
-			<select
-				id="resize-select"
-				value={String(resize)}
-				onchange={(e) => {
-					const v = (e.target as HTMLSelectElement).value;
-					resize = v === 'true' ? true : v === 'false' ? false : (v as 'width' | 'height');
-				}}
-				class="rounded-md border-0 bg-gray-100 px-2 py-1 text-sm text-gray-700 focus:ring-2 focus:ring-indigo-500"
-			>
-				<option value="false">off</option>
-				<option value="width">width</option>
-				<option value="height">height</option>
-				<option value="true">both</option>
-			</select>
-		</div>
-		<ThemeSwitch />
-		<!-- Toggles -->
-		<div class="flex items-center gap-4 rounded-xl bg-white px-4 py-2 shadow ring-1 ring-black/10">
-			<label class="flex cursor-pointer items-center gap-1.5">
-				<input type="checkbox" bind:checked={matchSize} class="accent-red-500" />
-				<span class="text-sm font-medium text-gray-600">Match size</span>
-			</label>
-			<label class="flex cursor-pointer items-center gap-1.5">
-				<input type="checkbox" bind:checked={portal} class="accent-emerald-500" />
-				<span class="text-sm font-medium text-gray-600">Portal</span>
-			</label>
-			<label class="flex cursor-pointer items-center gap-1.5">
-				<input
-					type="checkbox"
-					checked={grouped}
-					onchange={(e) => setGrouped((e.target as HTMLInputElement).checked)}
-					class="accent-blue-500"
-				/>
-				<span class="text-sm font-medium text-gray-600">Group</span>
-			</label>
-			<label class="flex cursor-pointer items-center gap-1.5">
-				<input type="checkbox" bind:checked={arrow} class="accent-amber-500" />
-				<span class="text-sm font-medium text-gray-600">Arrow</span>
-			</label>
-			<select
-				bind:value={arrowSize}
-				disabled={!arrow}
-				aria-label="Arrow size"
-				class="rounded-md border-0 bg-gray-100 px-2 py-1 text-sm text-gray-700 focus:ring-2 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
-			>
-				<option value="sm">sm</option>
-				<option value="md">md</option>
-				<option value="lg">lg</option>
-			</select>
-		</div>
-	</div>
+	<Controls
+		{triggerBy}
+		bind:autoPlacement
+		bind:offset
+		{grouped}
+		bind:matchSize
+		bind:portal
+		bind:arrow
+		bind:arrowSize
+		bind:resize
+		bind:transitionKey
+		transitionKeys={Object.keys(transitions) as TransitionKey[]}
+		onTriggerChange={setTrigger}
+		onGroupedChange={setGrouped}
+	/>
 
 	<div class="h-20"></div>
 	<!-- Scroll surface: 3× viewport in each direction so the grid can be scrolled to
 	     any viewport edge, which triggers position-try-fallbacks on the popovers. -->
-	<div
-		class="flex min-h-[300vh] min-w-[300vw] items-center justify-center bg-gray-50"
-	>
+	<div class="flex min-h-[300vh] min-w-[300vw] items-center justify-center bg-gray-50">
 		<div class="grid grid-cols-5 gap-12">
 			{#each gridCells as cell (cell.id)}
 				{@const cellGroup = grouped && !cell.placement.includes('-') ? 'demo' : undefined}
