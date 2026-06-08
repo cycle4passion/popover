@@ -1,35 +1,14 @@
 <script module lang="ts">
-	export const placements = [
-		'top',
-		'bottom',
-		'left',
-		'right',
-		'top-start',
-		'top-end',
-		'bottom-start',
-		'bottom-end',
-		'left-start',
-		'left-end',
-		'right-start',
-		'right-end'
-	] as const;
-
-	export type Side = 'top' | 'bottom' | 'left' | 'right';
-	export type Placement = Side | `${Side}-${'start' | 'end'}`;
-	export type TriggerBy = 'click' | 'hover';
+	import type { TransitionFn, Placement, TriggerBy, Side } from './types';
 </script>
 
 <script lang="ts">
-	import type { TransitionConfig } from 'svelte/transition';
 	import type { Snippet } from 'svelte';
 	import { portal as attachPortal, type PortalOptions } from '$lib/attachments/portal';
 	import { cls } from '@layerstack/tailwind';
-	import { composeTransitions } from '$lib/transitions/composeTransitions';
-	import { scale } from 'svelte/transition';
-	import { slidefrom } from '$lib/transitions/slidefrom';
-	import { arrow as arrowSnippet, arrowSizePx, type ArrowSize } from '$lib/components/Arrow.svelte';
 
-	type TransitionFn = (node: Element, params?: Record<string, unknown>) => TransitionConfig;
+	import Arrow, { arrowSizePx, type ArrowSize } from '$lib/components/Popover/Arrow.svelte';
+	import { normalizeTransition } from './popover';
 
 	type Props = {
 		/** Whether the popover is visible. Bindable. */
@@ -38,6 +17,8 @@
 		arrow?: boolean | ArrowSize;
 		/** Preferred placement relative to the anchor. May be flipped by the browser when space is constrained; the arrow follows the actual rendered side. @default 'top' */
 		placement?: Placement;
+		/** Whether to use Anchor positioning API. @default true */
+		autoPlacement?: boolean;
 		/** Gap in pixels between the popover and its anchor. @default 0 */
 		offset?: number;
 		/** Popovers sharing the same group name open and close together. */
@@ -46,8 +27,8 @@
 		anchorEl?: string;
 		/** What interaction opens the popover. @default 'click' */
 		triggerBy?: TriggerBy;
-		/** When true, the popover width matches its anchor's width. @default false */
-		matchWidth?: boolean;
+		/** When true, the popover matches its anchor size along the placement axis. Top/bottom uses width; left/right uses height. @default false */
+		matchSize?: boolean;
 		/** Constrains the popover to available viewport space. 'width', 'height', or true for both. @default false */
 		resize?: boolean | 'width' | 'height';
 		/** Additional inline styles applied to the popover element. */
@@ -61,17 +42,18 @@
 		children?: Snippet;
 	} & Record<string, unknown>;
 
-	let popoverEl: HTMLElement | null = null;
+	let popoverEl = $state<HTMLElement | null>(null);
 	const anchorName = `--popover-anchor-${crypto.randomUUID().slice(0, 8)}`;
 
 	let {
 		open = $bindable(false),
 		placement = 'top' as Placement,
+		autoPlacement = true,
 		offset = 0,
 		group,
 		anchorEl,
 		triggerBy = 'click',
-		matchWidth = false,
+		matchSize = false,
 		resize = false as boolean | 'width' | 'height',
 		portal = false,
 		style = '',
@@ -83,8 +65,9 @@
 	}: Props = $props();
 
 	// const transition = $derived(transitionProp ?? logicalSlideFade(placement));
-	const transition = $derived(transitionProp ?? composeTransitions([slidefrom('top'), scale]));
-
+	const declaredSide = $derived(placement.split('-')[0] as Side);
+	let effectiveSide = $derived<Side>(declaredSide);
+	const transition: TransitionFn = $derived(normalizeTransition(transitionProp, effectiveSide));
 	const arrowSize: ArrowSize | null = $derived(
 		arrow === false ? null : arrow === true ? 'md' : arrow
 	);
@@ -95,11 +78,10 @@
 		if (open) liveArrowSize = arrowSize;
 	});
 
-	const declaredSide = $derived(placement.split('-')[0] as Side);
-	let effectiveSide = $derived<Side>(declaredSide);
-	$effect(() => {
-		effectiveSide = declaredSide;
-	});
+	// Gates the transitioning inner div until effectiveSide has been measured
+	// from the actually-rendered popover position. Without this, the intro
+	// transition plays from declaredSide for one frame after a CSS flip.
+	let measured = $state(false);
 
 	function popoverEvents(anchor: HTMLElement, el: HTMLElement) {
 		if (triggerBy === 'hover') {
@@ -149,10 +131,17 @@
 
 		$effect(() => {
 			if (!(target instanceof HTMLElement)) return;
-			if (matchWidth) {
-				el.style.width = `${target.offsetWidth}px`;
+			if (matchSize) {
+				if (effectiveSide === 'top' || effectiveSide === 'bottom') {
+					el.style.width = `${target.offsetWidth}px`;
+					el.style.removeProperty('height');
+				} else {
+					el.style.height = `${target.offsetHeight}px`;
+					el.style.removeProperty('width');
+				}
 			} else {
 				el.style.removeProperty('width');
+				el.style.removeProperty('height');
 			}
 		});
 
@@ -165,17 +154,30 @@
 
 		$effect(() => {
 			if (!(target instanceof HTMLElement)) return;
-			if (!open || !showArrow) return;
-			let rafId = 0;
-			const tick = () => {
+			if (!open) {
+				// Closed before first measurement: no outro will fire, so hide directly.
+				if (!measured && popoverEl?.matches(':popover-open')) popoverEl.hidePopover();
+				measured = false;
+				return;
+			}
+			const measure = () => {
 				const a = target.getBoundingClientRect();
 				const p = el.getBoundingClientRect();
+				if (p.width === 0 && p.height === 0) return;
 				let next: Side = declaredSide;
 				if (p.bottom <= a.top) next = 'top';
 				else if (p.top >= a.bottom) next = 'bottom';
 				else if (p.right <= a.left) next = 'left';
 				else if (p.left >= a.right) next = 'right';
 				if (next !== effectiveSide) effectiveSide = next;
+				if (!measured) measured = true;
+			};
+			// Synchronous first measurement — openEvents effect already ran showPopover,
+			// and the !measured branch has rendered a sizer so the popover has dimensions.
+			measure();
+			let rafId = 0;
+			const tick = () => {
+				measure();
 				rafId = requestAnimationFrame(tick);
 			};
 			rafId = requestAnimationFrame(tick);
@@ -257,119 +259,6 @@
 			open = false;
 		}
 	}
-
-	let isDark = $state(false);
-	$effect(() => {
-		const mq = window.matchMedia('(prefers-color-scheme: dark)');
-		const update = () =>
-			(isDark = mq.matches || document.documentElement.classList.contains('dark'));
-		update();
-		mq.addEventListener('change', update);
-		const obs = new MutationObserver(update);
-		obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-		return () => {
-			mq.removeEventListener('change', update);
-			obs.disconnect();
-		};
-	});
-
-	function arrowStylesFromClasses(classes: string[], dark: boolean) {
-		let ringColor: string | undefined;
-		let ringWidth: string | undefined;
-		let dropShadow: string | undefined;
-
-		// Resolve dark: variants: include base classes always, overlay dark: classes when dark mode is active
-		const active = classes.flatMap((c) => {
-			if (c.startsWith('dark:')) return dark ? [c.slice(5)] : [];
-			return [c];
-		});
-
-		for (const c of active) {
-			// ring-0, ring-1, ring-2, ring-4, ring-8
-			const numericRing = c.match(/^ring-(\d+)$/);
-			if (numericRing) {
-				ringWidth = `${numericRing[1]}px`;
-				continue;
-			}
-			// bare `ring` → Tailwind v4 default (1px)
-			if (c === 'ring') {
-				ringWidth = '1px';
-				continue;
-			}
-			// ring-[Xpx] arbitrary width or ring-[color]
-			const arbitraryRing = c.match(/^ring-\[(.+?)\](?:\/(\d+))?$/);
-			if (arbitraryRing) {
-				const val = arbitraryRing[1];
-				if (/^[\d.]/.test(val)) {
-					ringWidth = /[a-z%]/.test(val) ? val : `${val}px`;
-				} else {
-					ringColor = arbitraryRing[2]
-						? `color-mix(in oklab, ${val} ${arbitraryRing[2]}%, transparent)`
-						: val;
-				}
-				continue;
-			}
-			// ring-{color}: ring-indigo-500, ring-black/10, ring-current, etc.
-			// Exclude: ring-offset-*, ring-inset, numeric widths (already handled above)
-			const ringColorMatch = c.match(/^ring-(?!offset-|inset\b)([a-zA-Z].+?)(?:\/(\d+))?$/);
-			if (ringColorMatch) {
-				const color = ringColorMatch[1];
-				const alpha = ringColorMatch[2];
-				ringColor =
-					color === 'current'
-						? 'currentColor'
-						: color === 'inherit'
-							? 'inherit'
-							: color === 'transparent'
-								? 'transparent'
-								: alpha
-									? `color-mix(in oklab, var(--color-${color}) ${alpha}%, transparent)`
-									: `var(--color-${color})`;
-				continue;
-			}
-			// shadow-none, shadow, shadow-sm, shadow-md, shadow-lg, shadow-xl, shadow-2xl, shadow-xs, shadow-2xs
-			const shadowMatch = c.match(/^shadow(-[\w-]+)?$/);
-			if (shadowMatch) {
-				if (c === 'shadow-none') {
-					dropShadow = undefined;
-					continue;
-				}
-				const name = shadowMatch[1]?.slice(1);
-				dropShadow = name
-					? `drop-shadow(var(--drop-shadow-${name}))`
-					: `drop-shadow(var(--drop-shadow))`;
-			}
-		}
-
-		return { ringColor, ringWidth, dropShadow };
-	}
-
-	$effect(() => {
-		if (!popoverEl) return;
-
-		const { ringColor, ringWidth, dropShadow } = arrowStylesFromClasses(
-			className.split(/\s+/).filter(Boolean),
-			isDark
-		);
-
-		if (!style.includes('--arrow-ring')) {
-			if (ringColor !== undefined) {
-				popoverEl.style.setProperty('--arrow-ring-color', ringColor);
-				popoverEl.style.setProperty('--arrow-ring-width', ringWidth ?? '2px');
-			} else {
-				popoverEl.style.removeProperty('--arrow-ring-color');
-				popoverEl.style.removeProperty('--arrow-ring-width');
-			}
-		}
-
-		if (!style.includes('--arrow-shadow')) {
-			if (dropShadow !== undefined) {
-				popoverEl.style.setProperty('--arrow-shadow', dropShadow);
-			} else {
-				popoverEl.style.removeProperty('--arrow-shadow');
-			}
-		}
-	});
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -381,35 +270,57 @@
 	data-arrow={showArrow || undefined}
 	data-effective-side={showArrow ? effectiveSide : undefined}
 	popover="manual"
-	class={cls('Popover', `placement-${placement}`, className)}
-	style={cls(`position-anchor: ${anchorName}; --popover-offset: ${offset}px;`, arrowSize && `--arrow-size:${arrowSizePx[arrowSize]}px;`, style)}
+	class={cls('Popover bg-transparent', `placement-${placement}`, className)}
+	style={cls(
+		`position-anchor: ${anchorName}; --popover-offset: ${offset}px;`,
+		arrowSize && `--arrow-size:${arrowSizePx[arrowSize]}px;`,
+		open && !measured && 'visibility:hidden;',
+		style
+	)}
 	ontoggle={(e) => (open = e.newState === 'open')}
 	{@attach attachAnchor}
 	{@attach attachPortal(portal)}
 	{...restProps}
 >
 	{#if open}
-		<!-- do not hide until outro transition finishes -->
-		<div
-			style={liveArrowSize ? 'position:relative;' : ''}
-			transition:transition
-			onoutroend={() => {
-				liveArrowSize = null;
-				popoverEl?.hidePopover();
-			}}
-		>
-			{@render children?.()}
-			{#if liveArrowSize}{@render arrowSnippet(effectiveSide, liveArrowSize)}{/if}
-		</div>
+		{#if measured}
+			<!-- do not hide until outro transition finishes -->
+			<div
+				style={liveArrowSize ? 'position:relative;' : ''}
+				transition:transition
+				onoutroend={() => {
+					liveArrowSize = null;
+					popoverEl?.hidePopover();
+					measured = false;
+				}}
+			>
+				{@render children?.()}
+				{#if liveArrowSize}
+					<Arrow
+						side={effectiveSide}
+						size={liveArrowSize}
+						{popoverEl}
+						popoverClass={className}
+						popoverStyle={style}
+					/>
+				{/if}
+			</div>
+		{:else}
+			<!--  sizer: gives popover dimensions so position-area can resolve and we can measure;
+						parent popover has visibility:hidden so this is not painted -->
+			<div aria-hidden="true">
+				{@render children?.()}
+			</div>
+		{/if}
 	{/if}
 </div>
 
 <style>
 	[data-popover] {
-		/* inset: auto; */
-		/* 		margin: 0;
+		inset: auto;
+		margin: 0;
 		outline: hidden;
-		overflow: clip; */
+		overflow: clip;
 		--_popover-margin: var(--popover-offset, 0px);
 	}
 
@@ -501,49 +412,73 @@
 	.placement-top-start {
 		position-area: top span-right;
 		justify-self: start;
-		position-try-fallbacks: flip-block;
+		position-try-fallbacks:
+			flip-inline,
+			flip-block,
+			flip-inline flip-block;
 		margin-block-end: var(--_popover-margin);
 	}
 	.placement-top-end {
 		position-area: top span-left;
 		justify-self: end;
-		position-try-fallbacks: flip-block;
+		position-try-fallbacks:
+			flip-inline,
+			flip-block,
+			flip-inline flip-block;
 		margin-block-end: var(--_popover-margin);
 	}
 	.placement-bottom-start {
 		position-area: bottom span-right;
 		justify-self: start;
-		position-try-fallbacks: flip-block;
+		position-try-fallbacks:
+			flip-inline,
+			flip-block,
+			flip-inline flip-block;
 		margin-block-start: var(--_popover-margin);
 	}
 	.placement-bottom-end {
 		position-area: bottom span-left;
 		justify-self: end;
-		position-try-fallbacks: flip-block;
+		position-try-fallbacks:
+			flip-inline,
+			flip-block,
+			flip-inline flip-block;
 		margin-block-start: var(--_popover-margin);
 	}
 	.placement-left-start {
 		position-area: left span-bottom;
 		align-self: start;
-		position-try-fallbacks: flip-inline;
+		position-try-fallbacks:
+			flip-block,
+			flip-inline,
+			flip-block flip-inline;
 		margin-inline-end: var(--_popover-margin);
 	}
 	.placement-left-end {
 		position-area: left span-top;
 		align-self: end;
-		position-try-fallbacks: flip-inline;
+		position-try-fallbacks:
+			flip-block,
+			flip-inline,
+			flip-block flip-inline;
 		margin-inline-end: var(--_popover-margin);
 	}
 	.placement-right-start {
 		position-area: right span-bottom;
 		align-self: start;
-		position-try-fallbacks: flip-inline;
+		position-try-fallbacks:
+			flip-block,
+			flip-inline,
+			flip-block flip-inline;
 		margin-inline-start: var(--_popover-margin);
 	}
 	.placement-right-end {
 		position-area: right span-top;
 		align-self: end;
-		position-try-fallbacks: flip-inline;
+		position-try-fallbacks:
+			flip-block,
+			flip-inline,
+			flip-block flip-inline;
 		margin-inline-start: var(--_popover-margin);
 	}
 </style>
