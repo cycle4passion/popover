@@ -1,6 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { type Placement, type TriggerBy, type ArrowSize } from '$lib/components/Popover/types';
+	import {
+		type Placement,
+		type TriggerBy,
+		type ArrowSize
+	} from '$lib/components/Popover/Popover.svelte';
 	import Popover from '$lib/components/Popover/Popover.svelte';
 	import { fade, fly, slide, scale } from 'svelte/transition';
 	import type { TransitionConfig } from 'svelte/transition';
@@ -180,7 +184,7 @@
 
 	const content = $derived(
 		longContent
-			? 'Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas.'
+			? 'Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas.'
 			: 'Content'
 	);
 	let transitionKey = $state<TransitionKey>('default');
@@ -218,10 +222,10 @@
 <div class="flex flex-col bg-gray-50" data-popover-ignore>
 	<Controls
 		{triggerBy}
+		{grouped}
 		bind:autoPlacement
 		bind:offset
 		bind:viewportMargin
-		{grouped}
 		bind:matchSize
 		bind:portal
 		bind:arrow
@@ -235,8 +239,8 @@
 	/>
 
 	<div class="h-20"></div>
-	<!-- Scroll surface: 3× viewport in each direction so the grid can be scrolled to
-	     any viewport edge, which triggers position-try-fallbacks on the popovers. -->
+	<!-- 	Scroll surface: 3× viewport in each direction so the grid can be scrolled to
+				any viewport edge, which triggers position-try-fallbacks on the popovers. -->
 	<div class="flex min-h-[300vh] min-w-[300vw] items-center justify-center bg-gray-50">
 		<div class="grid grid-cols-5 gap-12">
 			{#each gridCells as cell (cell.id)}

@@ -92,7 +92,6 @@
 		...restProps
 	}: Props = $props();
 
-	// const transition = $derived(transitionProp ?? logicalSlideFade(placement));
 	const declaredSide = $derived(placement.split('-')[0] as Side);
 	let effectiveSide = $derived<Side>(declaredSide);
 	const transition: TransitionFn = $derived(normalizeTransition(transitionProp, effectiveSide));
@@ -217,6 +216,54 @@
 			};
 			rafId = requestAnimationFrame(tick);
 			return () => cancelAnimationFrame(rafId);
+		});
+
+		$effect(() => {
+			if (!resize) return;
+			if (!open) return;
+			if (!(target instanceof HTMLElement)) return;
+
+			const totalOffset = offset + (showArrow ? arrowSizePx[arrowSize!] * 0.707 : 0);
+			const margin = viewportMargin;
+
+			let rafId = 0;
+			const tick = () => {
+				const a = target.getBoundingClientRect();
+				const side = effectiveSide;
+
+				if (resize === true || resize === 'width') {
+					let maxW: number;
+					if (side === 'left') {
+						maxW = a.left - totalOffset - margin;
+					} else if (side === 'right') {
+						maxW = window.innerWidth - a.right - totalOffset - margin;
+					} else {
+						maxW = window.innerWidth - 2 * margin;
+					}
+					el.style.maxWidth = `${Math.max(0, maxW)}px`;
+				}
+
+				if (resize === true || resize === 'height') {
+					let maxH: number;
+					if (side === 'top') {
+						maxH = a.top - totalOffset - margin;
+					} else if (side === 'bottom') {
+						maxH = window.innerHeight - a.bottom - totalOffset - margin;
+					} else {
+						maxH = window.innerHeight - 2 * margin;
+					}
+					el.style.maxHeight = `${Math.max(0, maxH)}px`;
+				}
+
+				rafId = requestAnimationFrame(tick);
+			};
+			rafId = requestAnimationFrame(tick);
+
+			return () => {
+				cancelAnimationFrame(rafId);
+				el.style.removeProperty('max-width');
+				el.style.removeProperty('max-height');
+			};
 		});
 
 		$effect(() => {
@@ -643,54 +690,13 @@
 
 	/* ── Resize constraints ─────────────────────────────────────────────────── */
 	/*
-	 * Pin the far viewport edge so the popover can't overflow, then let the
-	 * inner div scroll. overflow:clip on the popover itself keeps transitions
-	 * from creating unwanted scrollbars.
+	 * max-width/max-height are set by JS. Without arrow, [data-popover] already
+	 * has overflow:clip so content is clipped. With arrow, overflow:visible is
+	 * set to let the ::after protrude — override it back to clip with a clip
+	 * margin just large enough to keep the arrow visible.
 	 */
-
-	/* 	/§ width: pin the inline far-edge §/
-	:is(
-		.placement-top,
-		.placement-top-start,
-		.placement-top-end,
-		.placement-bottom,
-		.placement-bottom-start,
-		.placement-bottom-end
-	).resize-width {
-		inset-inline: 8px;
+	[data-popover][data-arrow]:is(.resize-width, .resize-height) {
+		overflow: clip;
+		overflow-clip-margin: calc(var(--arrow-size, 0px) * 0.707 + 1px);
 	}
-	:is(.placement-left, .placement-left-start, .placement-left-end).resize-width {
-		inset-inline-start: 8px;
-	}
-	:is(.placement-right, .placement-right-start, .placement-right-end).resize-width {
-		inset-inline-end: 8px;
-	}
-
-	/§ height: pin the block far-edge §/
-	:is(.placement-top, .placement-top-start, .placement-top-end).resize-height {
-		inset-block-start: 8px;
-	}
-	:is(.placement-bottom, .placement-bottom-start, .placement-bottom-end).resize-height {
-		inset-block-end: 8px;
-	}
-	:is(
-		.placement-left,
-		.placement-left-start,
-		.placement-left-end,
-		.placement-right,
-		.placement-right-start,
-		.placement-right-end
-	).resize-height {
-		inset-block: 8px;
-	}
-
-	/§ scroll on the inner div §/
-	.resize-width > div {
-		width: 100%;
-		overflow-x: auto;
-	}
-	.resize-height > div {
-		height: 100%;
-		overflow-y: auto;
-	} */
 </style>
