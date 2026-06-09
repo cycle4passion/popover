@@ -271,6 +271,7 @@
 	popover="manual"
 	class={cls(
 		autoPlacement && 'anchorPositioned',
+		!resize && 'absolute z-50',
 		'Popover bg-transparent',
 		`placement-${placement}`,
 		(resize === true || resize === 'width') && 'resize-width',
@@ -278,7 +279,7 @@
 		className
 	)}
 	style={cls(
-		`position-anchor: ${anchorName}; --popover-offset: ${offset}px;`,
+		`position-anchor: ${anchorName}; --popover-gap: ${offset}px;`,
 		arrowSize && `--arrow-size:${arrowSizePx[arrowSize]}px;`,
 		open && !measured && 'visibility:hidden;',
 		style
@@ -322,26 +323,208 @@
 </div>
 
 <style>
+	/* ── Base popover reset ─────────────────────────────────────────────────── */
 	[data-popover] {
 		inset: auto;
 		margin: 0;
 		outline: hidden;
 		overflow: clip;
-		--_popover-margin: var(--popover-offset, 0px);
+		/* combines user offset + arrow clearance (--arrow-size is 0 when no arrow) */
+		--popover-offset: calc(var(--popover-gap, 0px) + var(--arrow-size, 0px));
+
+		&[data-arrow] {
+			overflow: visible;
+		}
 	}
 
-	[data-popover][data-arrow] {
-		overflow: visible;
-		--_popover-margin: calc(var(--popover-offset, 0px) + var(--arrow-size, 8px));
+	/* ── Placement (CSS Anchor Positioning) ─────────────────────────────────── */
+	/*
+	 * inset-area is the Chrome 125–128 name; position-area is Chrome 129+.
+	 * position-try-options is the Chrome 125–128 name; position-try-fallbacks is 129+.
+	 * Both are listed so the rules work across all supporting versions.
+	 *
+	 * Base rules position the popover at the declared side. .anchorPositioned
+	 * adds fallbacks so the browser can flip when the popover would overflow.
+	 */
+
+	.placement-top {
+		inset-area: top; /* <-- for Chrome 125–128 */
+		position-area: top; /* <-- for Chrome 129+ */
+		margin-block-end: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options: flip-block; /* <-- for Chrome 125–128 */
+			position-try-fallbacks: flip-block; /* <-- for Chrome 129+ */
+		}
+	}
+	.placement-bottom {
+		inset-area: bottom;
+		position-area: bottom;
+		margin-block-start: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options: flip-block;
+			position-try-fallbacks: flip-block;
+		}
 	}
 
-	/* width resize: pin inline edge to viewport; overflow on inner div to avoid transition scrollbars */
-	:is(.placement-right, .placement-right-start, .placement-right-end).resize-width {
-		inset-inline-end: 8px;
+	.placement-left {
+		inset-area: left;
+		position-area: left;
+		margin-inline-end: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options: flip-inline;
+			position-try-fallbacks: flip-inline;
+		}
 	}
-	:is(.placement-left, .placement-left-start, .placement-left-end).resize-width {
-		inset-inline-start: 8px;
+	.placement-right {
+		inset-area: right;
+		position-area: right;
+		margin-inline-start: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options: flip-inline;
+			position-try-fallbacks: flip-inline;
+		}
 	}
+
+	.placement-top-start {
+		inset-area: top span-right;
+		position-area: top span-right;
+		justify-self: start;
+		margin-block-end: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options:
+				flip-inline,
+				flip-block,
+				flip-inline flip-block;
+			position-try-fallbacks:
+				flip-inline,
+				flip-block,
+				flip-inline flip-block;
+		}
+	}
+	.placement-top-end {
+		inset-area: top span-left;
+		position-area: top span-left;
+		justify-self: end;
+		margin-block-end: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options:
+				flip-inline,
+				flip-block,
+				flip-inline flip-block;
+			position-try-fallbacks:
+				flip-inline,
+				flip-block,
+				flip-inline flip-block;
+		}
+	}
+
+	.placement-bottom-start {
+		inset-area: bottom span-right;
+		position-area: bottom span-right;
+		justify-self: start;
+		margin-block-start: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options:
+				flip-inline,
+				flip-block,
+				flip-inline flip-block;
+			position-try-fallbacks:
+				flip-inline,
+				flip-block,
+				flip-inline flip-block;
+		}
+	}
+	.placement-bottom-end {
+		inset-area: bottom span-left;
+		position-area: bottom span-left;
+		justify-self: end;
+		margin-block-start: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options:
+				flip-inline,
+				flip-block,
+				flip-inline flip-block;
+			position-try-fallbacks:
+				flip-inline,
+				flip-block,
+				flip-inline flip-block;
+		}
+	}
+
+	.placement-left-start {
+		inset-area: left span-bottom;
+		position-area: left span-bottom;
+		align-self: start;
+		margin-inline-end: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options:
+				flip-block,
+				flip-inline,
+				flip-block flip-inline;
+			position-try-fallbacks:
+				flip-block,
+				flip-inline,
+				flip-block flip-inline;
+		}
+	}
+	.placement-left-end {
+		inset-area: left span-top;
+		position-area: left span-top;
+		align-self: end;
+		margin-inline-end: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options:
+				flip-block,
+				flip-inline,
+				flip-block flip-inline;
+			position-try-fallbacks:
+				flip-block,
+				flip-inline,
+				flip-block flip-inline;
+		}
+	}
+
+	.placement-right-start {
+		inset-area: right span-bottom;
+		position-area: right span-bottom;
+		align-self: start;
+		margin-inline-start: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options:
+				flip-block,
+				flip-inline,
+				flip-block flip-inline;
+			position-try-fallbacks:
+				flip-block,
+				flip-inline,
+				flip-block flip-inline;
+		}
+	}
+	.placement-right-end {
+		inset-area: right span-top;
+		position-area: right span-top;
+		align-self: end;
+		margin-inline-start: var(--popover-offset);
+		&:is(.anchorPositioned) {
+			position-try-options:
+				flip-block,
+				flip-inline,
+				flip-block flip-inline;
+			position-try-fallbacks:
+				flip-block,
+				flip-inline,
+				flip-block flip-inline;
+		}
+	}
+
+	/* ── Resize constraints ─────────────────────────────────────────────────── */
+	/*
+	 * Pin the far viewport edge so the popover can't overflow, then let the
+	 * inner div scroll. overflow:clip on the popover itself keeps transitions
+	 * from creating unwanted scrollbars.
+	 */
+
+	/* width: pin the inline far-edge */
 	:is(
 		.placement-top,
 		.placement-top-start,
@@ -352,13 +535,19 @@
 	).resize-width {
 		inset-inline: 8px;
 	}
-
-	/* height resize: pin block edge to viewport */
-	:is(.placement-bottom, .placement-bottom-start, .placement-bottom-end).resize-height {
-		inset-block-end: 8px;
+	:is(.placement-left, .placement-left-start, .placement-left-end).resize-width {
+		inset-inline-start: 8px;
 	}
+	:is(.placement-right, .placement-right-start, .placement-right-end).resize-width {
+		inset-inline-end: 8px;
+	}
+
+	/* height: pin the block far-edge */
 	:is(.placement-top, .placement-top-start, .placement-top-end).resize-height {
 		inset-block-start: 8px;
+	}
+	:is(.placement-bottom, .placement-bottom-start, .placement-bottom-end).resize-height {
+		inset-block-end: 8px;
 	}
 	:is(
 		.placement-left,
@@ -371,7 +560,7 @@
 		inset-block: 8px;
 	}
 
-	/* scroll on the inner div — popover keeps overflow:clip so transitions don't create scrollbars */
+	/* scroll on the inner div */
 	.resize-width > div {
 		width: 100%;
 		overflow-x: auto;
@@ -379,98 +568,5 @@
 	.resize-height > div {
 		height: 100%;
 		overflow-y: auto;
-	}
-
-	.anchorPositioned.placement-top {
-		position-area: top;
-		position-try-fallbacks: flip-block;
-		margin-block-end: var(--_popover-margin);
-	}
-	.anchorPositioned.placement-bottom {
-		position-area: bottom;
-		position-try-fallbacks: flip-block;
-		margin-block-start: var(--_popover-margin);
-	}
-	.anchorPositioned.placement-left {
-		position-area: left;
-		position-try-fallbacks: flip-inline;
-		margin-inline-end: var(--_popover-margin);
-	}
-	.anchorPositioned.placement-right {
-		position-area: right;
-		position-try-fallbacks: flip-inline;
-		margin-inline-start: var(--_popover-margin);
-	}
-	.anchorPositioned.placement-top-start {
-		position-area: top span-right;
-		justify-self: start;
-		position-try-fallbacks:
-			flip-inline,
-			flip-block,
-			flip-inline flip-block;
-		margin-block-end: var(--_popover-margin);
-	}
-	.anchorPositioned.placement-top-end {
-		position-area: top span-left;
-		justify-self: end;
-		position-try-fallbacks:
-			flip-inline,
-			flip-block,
-			flip-inline flip-block;
-		margin-block-end: var(--_popover-margin);
-	}
-	.anchorPositioned.placement-bottom-start {
-		position-area: bottom span-right;
-		justify-self: start;
-		position-try-fallbacks:
-			flip-inline,
-			flip-block,
-			flip-inline flip-block;
-		margin-block-start: var(--_popover-margin);
-	}
-	.anchorPositioned.placement-bottom-end {
-		position-area: bottom span-left;
-		justify-self: end;
-		position-try-fallbacks:
-			flip-inline,
-			flip-block,
-			flip-inline flip-block;
-		margin-block-start: var(--_popover-margin);
-	}
-	.anchorPositioned.placement-left-start {
-		position-area: left span-bottom;
-		align-self: start;
-		position-try-fallbacks:
-			flip-block,
-			flip-inline,
-			flip-block flip-inline;
-		margin-inline-end: var(--_popover-margin);
-	}
-	.anchorPositioned.placement-left-end {
-		position-area: left span-top;
-		align-self: end;
-		position-try-fallbacks:
-			flip-block,
-			flip-inline,
-			flip-block flip-inline;
-		margin-inline-end: var(--_popover-margin);
-	}
-	.anchorPositioned.placement-right-start {
-		position-area: right span-bottom;
-		align-self: start;
-		position-try-fallbacks:
-			flip-block,
-			flip-inline,
-			flip-block flip-inline;
-		margin-inline-start: var(--_popover-margin);
-	}
-	.anchorPositioned.placement-right-end {
-		position-area: right span-top;
-		align-self: end;
-		position-try-fallbacks:
-			flip-block,
-			flip-inline,
-			flip-block flip-inline;
-		margin-inline-start: var(--_popover-margin);
 	}
 </style>

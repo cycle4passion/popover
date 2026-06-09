@@ -37,7 +37,7 @@
 			row: 1,
 			buttonText: 'top-start',
 			content: 'Content',
-			classname: 'bg-red-500'
+			classname: 'bg-red-500 px-6 py-6'
 		},
 		{
 			id: 'top',
@@ -47,7 +47,7 @@
 			row: 1,
 			buttonText: 'top',
 			content: 'Content',
-			classname: 'bg-blue-500'
+			classname: 'bg-blue-500 px-6 py-6'
 		},
 		{
 			id: 'top-end',
@@ -57,7 +57,7 @@
 			row: 1,
 			buttonText: 'top-end',
 			content: 'Content',
-			classname: 'bg-red-500'
+			classname: 'bg-red-500 px-6 py-6'
 		},
 		{
 			id: 'left-start',
@@ -67,7 +67,7 @@
 			row: 2,
 			buttonText: 'left-start',
 			content: 'Content',
-			classname: 'bg-red-500'
+			classname: 'bg-red-500 px-6 py-6'
 		},
 		{
 			id: 'right-start',
@@ -77,7 +77,7 @@
 			row: 2,
 			buttonText: 'right-start',
 			content: 'Content',
-			classname: 'bg-red-500'
+			classname: 'bg-red-500 px-6 py-6'
 		},
 		{
 			id: 'left',
@@ -87,7 +87,7 @@
 			row: 3,
 			buttonText: 'left',
 			content: 'Content',
-			classname: 'bg-blue-500'
+			classname: 'bg-blue-500 px-6 py-6'
 		},
 		{
 			id: 'shadow-lg',
@@ -97,9 +97,8 @@
 			row: 3,
 			buttonText: 'shadow-lg',
 			content: 'shadow-lg',
-			classname: 'bg-emerald-500',
-			popoverClass: 'rounded-lg shadow-lg',
-			popoverStyle: '--arrow-bg: white;'
+			classname: 'bg-emerald-500 px-6 py-6',
+			popoverClass: 'rounded-lg shadow-lg'
 		},
 		{
 			id: 'ringed-2',
@@ -108,10 +107,9 @@
 			col: 3,
 			row: 3,
 			buttonText: 'ringed-2',
-			content: 'ring-2 ring-indigo-500 shadow-2xl',
-			classname: 'bg-indigo-500',
-			popoverClass: 'rounded-lg shadow-2xl ring-2 ring-indigo-500',
-			popoverStyle: '--arrow-bg: white;'
+			content: 'ring-2 ring-indigo-500',
+			classname: 'bg-indigo-500 px-6 py-6',
+			popoverClass: 'rounded-lg ring-2 ring-indigo-500'
 		},
 		{
 			id: 'shadow-ring',
@@ -121,9 +119,8 @@
 			row: 3,
 			buttonText: 'shadow+ring',
 			content: 'shadow ring-1 ring-amber-400',
-			classname: 'bg-amber-500 shadow-2xl',
-			popoverClass: 'rounded-lg shadow-2xl ring-1 ring-amber-400',
-			popoverStyle: '--arrow-bg: white;'
+			classname: 'bg-amber-500 shadow-2xl px-6 py-6',
+			popoverClass: 'rounded-lg shadow-2xl ring-1 ring-amber-400'
 		},
 		{
 			id: 'right',
@@ -133,7 +130,7 @@
 			row: 3,
 			buttonText: 'right',
 			content: 'Content',
-			classname: 'bg-blue-500'
+			classname: 'bg-blue-500 px-6 py-6'
 		},
 		{
 			id: 'left-end',
@@ -143,7 +140,7 @@
 			row: 4,
 			buttonText: 'left-end',
 			content: 'Content',
-			classname: 'bg-red-500'
+			classname: 'bg-red-500 px-6 py-6'
 		},
 		{
 			id: 'right-end',
@@ -153,7 +150,7 @@
 			row: 4,
 			buttonText: 'right-end',
 			content: 'Content',
-			classname: 'bg-red-500'
+			classname: 'bg-red-500 px-6 py-6'
 		},
 		{
 			id: 'bottom-start',
@@ -163,7 +160,7 @@
 			row: 5,
 			buttonText: 'bottom-start',
 			content: 'Content',
-			classname: 'bg-red-500'
+			classname: 'bg-red-500 px-6 py-6'
 		},
 		{
 			id: 'bottom',
@@ -173,7 +170,7 @@
 			row: 5,
 			buttonText: 'bottom',
 			content: 'Content',
-			classname: 'bg-blue-500'
+			classname: 'bg-blue-500 px-6 py-6'
 		},
 		{
 			id: 'bottom-end',
@@ -183,7 +180,7 @@
 			row: 5,
 			buttonText: 'bottom-end',
 			content: 'Content',
-			classname: 'bg-red-500'
+			classname: 'bg-red-500 px-6 py-6'
 		}
 	];
 
@@ -257,7 +254,6 @@
 	<div class="flex min-h-[300vh] min-w-[300vw] items-center justify-center bg-gray-50">
 		<div class="grid grid-cols-5 gap-12">
 			{#each gridCells as cell (cell.id)}
-				{@const cellGroup = grouped && !cell.placement.includes('-') ? 'demo' : undefined}
 				<div
 					class={`flex ${cell.align}`}
 					style={`grid-column-start: ${cell.col}; grid-row-start: ${cell.row}`}
@@ -273,11 +269,11 @@
 
 					<Popover
 						bind:open={openStates[cell.id]}
+						group={grouped && !cell.placement.includes('-') ? 'demo' : undefined}
 						placement={cell.placement}
 						{autoPlacement}
 						{offset}
 						{triggerBy}
-						group={cellGroup}
 						{matchSize}
 						{resize}
 						{portal}
