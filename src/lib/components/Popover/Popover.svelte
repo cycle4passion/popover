@@ -57,7 +57,7 @@
 		anchorEl,
 		triggerBy = 'click',
 		matchSize = false,
-		viewportMargin = 8,
+		viewportMargin = 28,
 		resize = false as boolean | 'width' | 'height',
 		portal = false,
 		style = '',
@@ -128,22 +128,6 @@
 		if (target instanceof HTMLElement) {
 			target.style.setProperty('anchor-name', anchorName);
 		}
-
-		$effect(() => {
-			if (!(target instanceof HTMLElement)) return;
-			if (matchSize) {
-				if (effectiveSide === 'top' || effectiveSide === 'bottom') {
-					el.style.width = `${target.offsetWidth}px`;
-					el.style.removeProperty('height');
-				} else {
-					el.style.height = `${target.offsetHeight}px`;
-					el.style.removeProperty('width');
-				}
-			} else {
-				el.style.removeProperty('width');
-				el.style.removeProperty('height');
-			}
-		});
 
 		$effect(() => {
 			if (!(target instanceof HTMLElement)) return;
@@ -272,6 +256,7 @@
 		'Popover bg-transparent',
 		autoPlacement && 'anchorPositioned',
 		`placement-${placement}`,
+		matchSize && 'match-size',
 		(resize === true || resize === 'width') && 'resize-width',
 		(resize === true || resize === 'height') && 'resize-height',
 		containerClass
@@ -389,6 +374,7 @@
 	.placement-top {
 		inset-area: top; /* <-- for Chrome 125–128 */
 		position-area: top; /* <-- for Chrome 129+ */
+		margin-block-start: var(--viewport-margin, 0px);
 		margin-block-end: var(--popover-offset);
 		&:is(.anchorPositioned) {
 			position-try-options: flip-block; /* <-- for Chrome 125–128 */
@@ -399,6 +385,7 @@
 		inset-area: bottom;
 		position-area: bottom;
 		margin-block-start: var(--popover-offset);
+		margin-block-end: var(--viewport-margin, 0px);
 		&:is(.anchorPositioned) {
 			position-try-options: flip-block;
 			position-try-fallbacks: flip-block;
@@ -408,6 +395,7 @@
 	.placement-left {
 		inset-area: left;
 		position-area: left;
+		margin-inline-start: var(--viewport-margin, 0px);
 		margin-inline-end: var(--popover-offset);
 		&:is(.anchorPositioned) {
 			position-try-options: flip-inline;
@@ -418,6 +406,7 @@
 		inset-area: right;
 		position-area: right;
 		margin-inline-start: var(--popover-offset);
+		margin-inline-end: var(--viewport-margin, 0px);
 		&:is(.anchorPositioned) {
 			position-try-options: flip-inline;
 			position-try-fallbacks: flip-inline;
@@ -428,7 +417,9 @@
 		inset-area: top span-right;
 		position-area: top span-right;
 		justify-self: start;
+		margin-block-start: var(--viewport-margin, 0px);
 		margin-block-end: var(--popover-offset);
+		margin-inline-end: var(--viewport-margin, 0px);
 		&:is(.anchorPositioned) {
 			position-try-options:
 				flip-inline,
@@ -444,7 +435,9 @@
 		inset-area: top span-left;
 		position-area: top span-left;
 		justify-self: end;
+		margin-block-start: var(--viewport-margin, 0px);
 		margin-block-end: var(--popover-offset);
+		margin-inline-start: var(--viewport-margin, 0px);
 		&:is(.anchorPositioned) {
 			position-try-options:
 				flip-inline,
@@ -462,6 +455,8 @@
 		position-area: bottom span-right;
 		justify-self: start;
 		margin-block-start: var(--popover-offset);
+		margin-block-end: var(--viewport-margin, 0px);
+		margin-inline-end: var(--viewport-margin, 0px);
 		&:is(.anchorPositioned) {
 			position-try-options:
 				flip-inline,
@@ -478,6 +473,8 @@
 		position-area: bottom span-left;
 		justify-self: end;
 		margin-block-start: var(--popover-offset);
+		margin-block-end: var(--viewport-margin, 0px);
+		margin-inline-start: var(--viewport-margin, 0px);
 		&:is(.anchorPositioned) {
 			position-try-options:
 				flip-inline,
@@ -494,7 +491,9 @@
 		inset-area: left span-bottom;
 		position-area: left span-bottom;
 		align-self: start;
+		margin-inline-start: var(--viewport-margin, 0px);
 		margin-inline-end: var(--popover-offset);
+		margin-block-end: var(--viewport-margin, 0px);
 		&:is(.anchorPositioned) {
 			position-try-options:
 				flip-block,
@@ -510,7 +509,9 @@
 		inset-area: left span-top;
 		position-area: left span-top;
 		align-self: end;
+		margin-inline-start: var(--viewport-margin, 0px);
 		margin-inline-end: var(--popover-offset);
+		margin-block-start: var(--viewport-margin, 0px);
 		&:is(.anchorPositioned) {
 			position-try-options:
 				flip-block,
@@ -528,6 +529,8 @@
 		position-area: right span-bottom;
 		align-self: start;
 		margin-inline-start: var(--popover-offset);
+		margin-inline-end: var(--viewport-margin, 0px);
+		margin-block-end: var(--viewport-margin, 0px);
 		&:is(.anchorPositioned) {
 			position-try-options:
 				flip-block,
@@ -544,6 +547,8 @@
 		position-area: right span-top;
 		align-self: end;
 		margin-inline-start: var(--popover-offset);
+		margin-inline-end: var(--viewport-margin, 0px);
+		margin-block-start: var(--viewport-margin, 0px);
 		&:is(.anchorPositioned) {
 			position-try-options:
 				flip-block,
@@ -553,6 +558,33 @@
 				flip-block,
 				flip-inline,
 				flip-block flip-inline;
+		}
+	}
+
+	/* ── Match anchor size ──────────────────────────────────────────────────── */
+	:is(
+		.placement-top,
+		.placement-top-start,
+		.placement-top-end,
+		.placement-bottom,
+		.placement-bottom-start,
+		.placement-bottom-end
+	).match-size {
+		width: anchor-size(width);
+	}
+
+	:is(
+		.placement-left,
+		.placement-left-start,
+		.placement-left-end,
+		.placement-right,
+		.placement-right-start,
+		.placement-right-end
+	).match-size {
+		height: anchor-size(height);
+
+		& > [data-popover-box] {
+			height: 100%;
 		}
 	}
 
