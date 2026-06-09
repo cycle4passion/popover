@@ -10,11 +10,14 @@
 		triggerBy: TriggerBy;
 		autoPlacement?: boolean;
 		offset?: number;
+		maxWidth?: number;
+		maxHeight?: number;
 		grouped: boolean;
 		matchSize?: boolean;
 		portal?: boolean;
 		arrow?: boolean;
 		arrowSize?: ArrowSize;
+		longContent?: boolean;
 		resize?: boolean | 'width' | 'height';
 		transitionKey?: TransitionKey;
 		transitionKeys: readonly TransitionKey[];
@@ -26,11 +29,14 @@
 		triggerBy,
 		autoPlacement = $bindable(true),
 		offset = $bindable(0),
+		maxWidth = $bindable(400),
+		maxHeight = $bindable(400),
 		grouped,
 		matchSize = $bindable(false),
 		portal = $bindable(false),
 		arrow = $bindable(true),
 		arrowSize = $bindable<ArrowSize>('md'),
+		longContent = $bindable(false),
 		resize = $bindable<boolean | 'width' | 'height'>(false),
 		transitionKey = $bindable<TransitionKey>('default'),
 		transitionKeys,
@@ -141,5 +147,9 @@
 			<option value="md">md</option>
 			<option value="lg">lg</option>
 		</select>
+		<label class="flex cursor-pointer items-center gap-1.5">
+			<input type="checkbox" bind:checked={longContent} class="accent-fuchsia-500" />
+			<span class="text-sm font-medium text-gray-600">Long content</span>
+		</label>
 	</div>
 </div>

@@ -89,37 +89,14 @@
 			classname: 'bg-blue-500 px-6 py-6'
 		},
 		{
-			id: 'shadow-lg',
-			placement: 'top',
-			align: 'justify-center',
-			col: 2,
-			row: 3,
-			buttonText: 'shadow-lg',
-			content: 'shadow-lg',
-			classname: 'bg-emerald-500 px-6 py-6',
-			popoverClass: 'rounded-lg shadow-lg'
-		},
-		{
-			id: 'ringed-2',
-			placement: 'top',
+			id: 'shadow',
+			placement: 'bottom',
 			align: 'justify-center',
 			col: 3,
 			row: 3,
-			buttonText: 'ringed-2',
-			content: 'ring-2 ring-indigo-500',
-			classname: 'bg-indigo-500 px-6 py-6',
-			popoverClass: 'rounded-lg ring-2 ring-indigo-500'
-		},
-		{
-			id: 'shadow-ring',
-			placement: 'top',
-			align: 'justify-center',
-			col: 4,
-			row: 3,
-			buttonText: 'shadow+ring',
-			content: 'shadow ring-1 ring-amber-400',
-			classname: 'bg-amber-500 shadow-2xl px-6 py-6',
-			popoverClass: 'rounded-lg shadow-2xl ring-1 ring-amber-400'
+			buttonText: 'shadow',
+			content: 'shadow-2xl shadow-red-500',
+			classname: 'bg-green-500 shadow-2xl shadow-red-500 px-6 py-6'
 		},
 		{
 			id: 'right',
@@ -197,7 +174,14 @@
 	let portal = $state(false);
 	let arrow = $state(true);
 	let arrowSize = $state<ArrowSize>('md');
+	let longContent = $state(false);
 	let resize = $state<boolean | 'width' | 'height'>(false);
+
+	const content = $derived(
+		longContent
+			? 'Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas.'
+			: 'Content'
+	);
 	let transitionKey = $state<TransitionKey>('default');
 
 	const noop = (): TransitionConfig => ({ duration: 0 });
@@ -240,6 +224,7 @@
 		bind:portal
 		bind:arrow
 		bind:arrowSize
+		bind:longContent
 		bind:resize
 		bind:transitionKey
 		transitionKeys={Object.keys(transitions) as TransitionKey[]}
@@ -281,8 +266,7 @@
 						class={`max-w-100 rounded-lg border-2 border-red-500 bg-black px-3 py-2 text-sm text-white ${cell.popoverClass ?? ''}`}
 						style={cell.popoverStyle ?? ''}
 					>
-						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-						{@html cell.content}
+						{content}
 					</Popover>
 				</div>
 			{/each}

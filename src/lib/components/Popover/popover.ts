@@ -8,7 +8,7 @@ import type { ArrowSize } from './types';
 type TransitionFn = (node: Element, params?: Record<string, unknown>) => TransitionConfig;
 type Side = 'top' | 'right' | 'bottom' | 'left';
 
-export const arrowSizePx = { sm: 10, md: 14, lg: 16 } satisfies Record<ArrowSize, number>;
+export const arrowSizePx = { sm: 10, md: 14, lg: 18 } satisfies Record<ArrowSize, number>;
 
 export const placements = [
 	'top',

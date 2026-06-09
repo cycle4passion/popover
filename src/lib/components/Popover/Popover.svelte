@@ -28,6 +28,8 @@
 		triggerBy?: TriggerBy;
 		/** When true, the popover matches its anchor size along the placement axis. Top/bottom uses width; left/right uses height. @default false */
 		matchSize?: boolean;
+		/** Minimum margin in pixels between the popover and the viewport edge when autoPlacement is enabled. @default 8 */
+		viewportMargin?: number;
 		/** Constrains the popover to available viewport space. 'width', 'height', or true for both. @default false */
 		resize?: boolean | 'width' | 'height';
 		portal?: PortalOptions | boolean;
@@ -55,6 +57,7 @@
 		anchorEl,
 		triggerBy = 'click',
 		matchSize = false,
+		viewportMargin = 8,
 		resize = false as boolean | 'width' | 'height',
 		portal = false,
 		style = '',
@@ -266,16 +269,15 @@
 	data-arrow={showArrow || undefined}
 	popover="manual"
 	class={cls(
-		'Popover',
+		'Popover bg-transparent',
 		autoPlacement && 'anchorPositioned',
-		!resize && 'absolute z-50',
 		`placement-${placement}`,
 		(resize === true || resize === 'width') && 'resize-width',
 		(resize === true || resize === 'height') && 'resize-height',
 		containerClass
 	)}
 	style={cls(
-		`position-anchor: ${anchorName}; --popover-gap: ${offset}px;`,
+		`position-anchor: ${anchorName}; --popover-gap: ${offset}px; --viewport-margin: ${viewportMargin}px;`,
 		arrowSize && `--arrow-size:${arrowSizePx[arrowSize]}px;`,
 		open && !measured && 'visibility:hidden;'
 	)}
