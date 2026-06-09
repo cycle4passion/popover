@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import type { TransitionFn, Placement, TriggerBy, Side } from './types';
+	import type { TransitionFn, Placement, TriggerBy, Side, ArrowSize } from './types';
 </script>
 
 <script lang="ts">
@@ -7,13 +7,12 @@
 	import { portal as attachPortal, type PortalOptions } from '$lib/attachments/portal';
 	import { cls } from '@layerstack/tailwind';
 
-	import Arrow, { arrowSizePx, type ArrowSize } from '$lib/components/Popover/Arrow.svelte';
-	import { normalizeTransition } from './popover';
+	import { arrowSizePx, normalizeTransition } from './popover';
 
 	type Props = {
 		/** Whether the popover is visible. Bindable. */
 		open?: boolean;
-		/** Show a directional arrow connecting the popover to its anchor. Pass `true` for default 'md' size, or 'sm' | 'md' | 'lg'. CSS vars --arrow-size (px), --arrow-bg, --arrow-border-color, --arrow-border-width control appearance. @default false */
+		/** Show a directional arrow connecting the popover to its anchor. Pass `true` for default 'md' size, or 'sm' | 'md' | 'lg'. The arrow inherits bg/border/drop-shadow from the Popover Box via CSS; override its size with the `--arrow-size` CSS var. @default false */
 		arrow?: boolean | ArrowSize;
 		/** Preferred placement relative to the anchor. May be flipped by the browser when space is constrained; the arrow follows the actual rendered side. @default 'top' */
 		placement?: Placement;
@@ -31,13 +30,15 @@
 		matchSize?: boolean;
 		/** Constrains the popover to available viewport space. 'width', 'height', or true for both. @default false */
 		resize?: boolean | 'width' | 'height';
-		/** Additional inline styles applied to the popover element. */
 		portal?: PortalOptions | boolean;
-		/** Svelte transition for open/close. @default logicalSlideFade */
-		style?: string;
-		/** Additional CSS classes applied to the popover element. */
-		class?: string;
 		/** Whether the popover is rendered in a portal. @default false */
+		style?: string;
+		/** Additional inline styles applied to the Popover Box. */
+		/** Additional CSS classes applied to the Popover Box (the visible styled wrapper). The arrow inherits bg/border/drop-shadow from here. */
+		class?: string;
+		/** Additional CSS classes applied to the outer positioning element. Rarely needed. */
+		containerClass?: string;
+		/** Svelte transition for open/close. @default logicalSlideFade */
 		transition?: TransitionFn;
 		children?: Snippet;
 	} & Record<string, unknown>;
@@ -58,6 +59,7 @@
 		portal = false,
 		style = '',
 		class: className = '',
+		containerClass = '',
 		transition: transitionProp = undefined,
 		arrow = false,
 		children,
@@ -73,12 +75,7 @@
 	);
 	const showArrow = $derived(arrowSize !== null);
 
-	let liveArrowSize = $state<ArrowSize | null>(null);
-	$effect.pre(() => {
-		if (open) liveArrowSize = arrowSize;
-	});
-
-	// Gates the transitioning inner div until effectiveSide has been measured
+	// Gates the transitioning Popover Box until effectiveSide has been measured
 	// from the actually-rendered popover position. Without this, the intro
 	// transition plays from declaredSide for one frame after a CSS flip.
 	let measured = $state(false);
@@ -267,22 +264,20 @@
 	data-popover
 	data-popover-group={group || undefined}
 	data-arrow={showArrow || undefined}
-	data-effective-side={showArrow ? effectiveSide : undefined}
 	popover="manual"
 	class={cls(
+		'Popover',
 		autoPlacement && 'anchorPositioned',
 		!resize && 'absolute z-50',
-		'Popover bg-transparent',
 		`placement-${placement}`,
 		(resize === true || resize === 'width') && 'resize-width',
 		(resize === true || resize === 'height') && 'resize-height',
-		className
+		containerClass
 	)}
 	style={cls(
 		`position-anchor: ${anchorName}; --popover-gap: ${offset}px;`,
 		arrowSize && `--arrow-size:${arrowSizePx[arrowSize]}px;`,
-		open && !measured && 'visibility:hidden;',
-		style
+		open && !measured && 'visibility:hidden;'
 	)}
 	ontoggle={(e) => (open = e.newState === 'open')}
 	{@attach attachAnchor}
@@ -293,29 +288,23 @@
 		{#if measured}
 			<!-- do not hide until outro transition finishes -->
 			<div
-				style={liveArrowSize ? 'position:relative;' : ''}
+				data-popover-box
+				data-arrow={showArrow || undefined}
+				data-effective-side={showArrow ? effectiveSide : undefined}
+				class={className}
+				{style}
 				transition:transition
 				onoutroend={() => {
-					liveArrowSize = null;
 					popoverEl?.hidePopover();
 					measured = false;
 				}}
 			>
 				{@render children?.()}
-				{#if liveArrowSize}
-					<Arrow
-						side={effectiveSide}
-						size={liveArrowSize}
-						{popoverEl}
-						popoverClass={className}
-						popoverStyle={style}
-					/>
-				{/if}
 			</div>
 		{:else}
 			<!--  sizer: gives popover dimensions so position-area can resolve and we can measure;
 						parent popover has visibility:hidden so this is not painted -->
-			<div aria-hidden="true">
+			<div data-popover-box class={className} aria-hidden="true">
 				{@render children?.()}
 			</div>
 		{/if}
@@ -329,12 +318,60 @@
 		margin: 0;
 		outline: hidden;
 		overflow: clip;
-		/* combines user offset + arrow clearance (--arrow-size is 0 when no arrow) */
-		--popover-offset: calc(var(--popover-gap, 0px) + var(--arrow-size, 0px));
+		/* combines user gap + arrow clearance. arrow is a 45° rotated square of side
+		   --arrow-size centered on the box edge, so it protrudes by half its diagonal
+		   ≈ 0.707 × --arrow-size. */
+		--popover-offset: calc(var(--popover-gap, 0px) + var(--arrow-size, 0px) * 0.707);
 
 		&[data-arrow] {
 			overflow: visible;
 		}
+	}
+
+	/* ── Popover Box (inner styled wrapper) + ::after arrow ─────────────────── */
+	[data-popover-box] {
+		position: relative;
+	}
+
+	[data-popover-box][data-arrow]::after {
+		content: '';
+		position: absolute;
+		width: var(--arrow-size, 8px);
+		height: var(--arrow-size, 8px);
+		background-color: inherit;
+		border: inherit;
+	}
+
+	[data-popover-box][data-arrow][data-effective-side='top']::after {
+		bottom: calc(-1 * var(--arrow-size, 8px) / 2);
+		left: 50%;
+		transform: translate(-50%, 0) rotate(45deg);
+		border-top-color: transparent;
+		border-left-color: transparent;
+	}
+
+	[data-popover-box][data-arrow][data-effective-side='bottom']::after {
+		top: calc(-1 * var(--arrow-size, 8px) / 2);
+		left: 50%;
+		transform: translate(-50%, 0) rotate(45deg);
+		border-bottom-color: transparent;
+		border-right-color: transparent;
+	}
+
+	[data-popover-box][data-arrow][data-effective-side='left']::after {
+		right: calc(-1 * var(--arrow-size, 8px) / 2);
+		top: 50%;
+		transform: translate(0, -50%) rotate(45deg);
+		border-bottom-color: transparent;
+		border-left-color: transparent;
+	}
+
+	[data-popover-box][data-arrow][data-effective-side='right']::after {
+		left: calc(-1 * var(--arrow-size, 8px) / 2);
+		top: 50%;
+		transform: translate(0, -50%) rotate(45deg);
+		border-top-color: transparent;
+		border-right-color: transparent;
 	}
 
 	/* ── Placement (CSS Anchor Positioning) ─────────────────────────────────── */
@@ -524,7 +561,7 @@
 	 * from creating unwanted scrollbars.
 	 */
 
-	/* width: pin the inline far-edge */
+	/* 	/§ width: pin the inline far-edge §/
 	:is(
 		.placement-top,
 		.placement-top-start,
@@ -542,7 +579,7 @@
 		inset-inline-end: 8px;
 	}
 
-	/* height: pin the block far-edge */
+	/§ height: pin the block far-edge §/
 	:is(.placement-top, .placement-top-start, .placement-top-end).resize-height {
 		inset-block-start: 8px;
 	}
@@ -560,7 +597,7 @@
 		inset-block: 8px;
 	}
 
-	/* scroll on the inner div */
+	/§ scroll on the inner div §/
 	.resize-width > div {
 		width: 100%;
 		overflow-x: auto;
@@ -568,5 +605,5 @@
 	.resize-height > div {
 		height: 100%;
 		overflow-y: auto;
-	}
+	} */
 </style>

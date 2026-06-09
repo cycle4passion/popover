@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { type Placement, type TriggerBy } from '$lib/components/Popover/types';
+	import { type Placement, type TriggerBy, type ArrowSize } from '$lib/components/Popover/types';
 	import Popover from '$lib/components/Popover/Popover.svelte';
-	import type { ArrowSize } from '$lib/components/Popover/Arrow.svelte';
 	import { fade, fly, slide, scale } from 'svelte/transition';
 	import type { TransitionConfig } from 'svelte/transition';
 	import { Button } from 'svelte-ux';
@@ -279,15 +278,11 @@
 						{portal}
 						{transition}
 						arrow={arrow ? arrowSize : false}
-						class={cell.popoverClass ?? ''}
-						style={cell.popoverStyle ?? '--arrow-bg: black'}
+						class={`max-w-100 rounded-lg border-2 border-red-500 bg-black px-3 py-2 text-sm text-white ${cell.popoverClass ?? ''}`}
+						style={cell.popoverStyle ?? ''}
 					>
-						<div
-							class="w-max-[400px] rounded-lg border-2 border-red-500 bg-black px-3 py-2 text-sm text-white"
-						>
-							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-							{@html cell.content}
-						</div>
+						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+						{@html cell.content}
 					</Popover>
 				</div>
 			{/each}

@@ -3,9 +3,12 @@ import { fly, scale, slide } from 'svelte/transition';
 import { flyfrom } from '$lib/components/Popover/flyfrom';
 import { slidefrom } from '$lib/components/Popover/slidefrom';
 import type { TransitionConfig } from 'svelte/transition';
+import type { ArrowSize } from './types';
 
 type TransitionFn = (node: Element, params?: Record<string, unknown>) => TransitionConfig;
 type Side = 'top' | 'right' | 'bottom' | 'left';
+
+export const arrowSizePx = { sm: 10, md: 14, lg: 16 } satisfies Record<ArrowSize, number>;
 
 export const placements = [
 	'top',
