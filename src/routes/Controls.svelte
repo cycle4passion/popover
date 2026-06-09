@@ -10,6 +10,7 @@
 		triggerBy: TriggerBy;
 		autoPlacement?: boolean;
 		offset?: number;
+		viewportMargin?: number;
 		maxWidth?: number;
 		maxHeight?: number;
 		grouped: boolean;
@@ -29,6 +30,7 @@
 		triggerBy,
 		autoPlacement = $bindable(true),
 		offset = $bindable(0),
+		viewportMargin = $bindable(28),
 		maxWidth = $bindable(400),
 		maxHeight = $bindable(400),
 		grouped,
@@ -75,6 +77,22 @@
 			class="w-24 accent-indigo-500"
 		/>
 		<span class="w-8 text-right text-sm text-gray-600 tabular-nums">{offset}px</span>
+	</div>
+
+	<!-- Viewport margin -->
+	<div class="flex items-center gap-3 rounded-xl bg-white px-4 py-2 shadow ring-1 ring-black/10">
+		<label for="viewport-margin-slider" class="text-sm font-medium text-gray-600"
+			>Viewport margin</label
+		>
+		<input
+			id="viewport-margin-slider"
+			type="range"
+			min="0"
+			max="100"
+			bind:value={viewportMargin}
+			class="w-24 accent-indigo-500"
+		/>
+		<span class="w-10 text-right text-sm text-gray-600 tabular-nums">{viewportMargin}px</span>
 	</div>
 
 	<!-- Transition -->

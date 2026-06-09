@@ -1,5 +1,28 @@
 <script module lang="ts">
-	import type { TransitionFn, Placement, TriggerBy, Side, ArrowSize } from './types';
+	import type { TransitionConfig } from 'svelte/transition';
+
+	export type TransitionFn = (node: Element, params?: Record<string, unknown>) => TransitionConfig;
+	export type Side = 'top' | 'bottom' | 'left' | 'right';
+	export type Placement = Side | `${Side}-${'start' | 'end'}`;
+	export type TriggerBy = 'click' | 'hover';
+	export type ArrowSize = 'sm' | 'md' | 'lg';
+
+	export const arrowSizePx = { sm: 10, md: 14, lg: 18 } satisfies Record<ArrowSize, number>;
+
+	export const placements = [
+		'top',
+		'bottom',
+		'left',
+		'right',
+		'top-start',
+		'top-end',
+		'bottom-start',
+		'bottom-end',
+		'left-start',
+		'left-end',
+		'right-start',
+		'right-end'
+	] as const;
 </script>
 
 <script lang="ts">
@@ -7,7 +30,7 @@
 	import { portal as attachPortal, type PortalOptions } from '$lib/attachments/portal';
 	import { cls } from '@layerstack/tailwind';
 
-	import { arrowSizePx, normalizeTransition } from './popover';
+	import { normalizeTransition } from './popover';
 
 	type Props = {
 		/** Whether the popover is visible. Bindable. */
@@ -50,14 +73,14 @@
 
 	let {
 		open = $bindable(false),
-		placement = 'top' as Placement,
+		placement = 'bottom' as Placement,
 		autoPlacement = true,
 		offset = 0,
 		group,
 		anchorEl,
 		triggerBy = 'click',
 		matchSize = false,
-		viewportMargin = 28,
+		viewportMargin = 8,
 		resize = false as boolean | 'width' | 'height',
 		portal = false,
 		style = '',
@@ -82,6 +105,7 @@
 	// from the actually-rendered popover position. Without this, the intro
 	// transition plays from declaredSide for one frame after a CSS flip.
 	let measured = $state(false);
+	let dropShadow = $state('');
 
 	function popoverEvents(anchor: HTMLElement, el: HTMLElement) {
 		if (triggerBy === 'hover') {
@@ -123,11 +147,38 @@
 		}
 	}
 
+	// Converts a computed box-shadow value to a CSS filter: drop-shadow() list.
+	// drop-shadow() takes "x y blur color" with no spread radius.
+	function boxShadowToFilter(boxShadow: string): string {
+		if (!boxShadow || boxShadow === 'none') return '';
+		return boxShadow
+			.split(/,(?![^(]*\))/)
+			.map((s) => {
+				s = s.trim();
+				// Extract color (function call or hex); remaining tokens are lengths
+				const colorMatch = s.match(/[a-z]+\([^)]*\)|#[\da-fA-F]{3,8}/i);
+				if (!colorMatch) return '';
+				const color = colorMatch[0];
+				const lengths = s.replace(color, '').trim().split(/\s+/).filter(Boolean);
+				if (lengths.length < 2) return '';
+				// lengths: [x, y, blur?, spread?] — spread (index 3) is intentionally ignored
+				const [x, y, blur = '0'] = lengths;
+				return `drop-shadow(${x} ${y} ${blur} ${color})`;
+			})
+			.filter(Boolean)
+			.join(' ');
+	}
+
 	function attachAnchor(el: HTMLElement) {
 		const target = anchorEl ? document.getElementById(anchorEl) : el.previousElementSibling;
 		if (target instanceof HTMLElement) {
 			target.style.setProperty('anchor-name', anchorName);
 		}
+
+		$effect(() => {
+			if (!(target instanceof HTMLElement)) return;
+			dropShadow = boxShadowToFilter(getComputedStyle(target).boxShadow);
+		});
 
 		$effect(() => {
 			if (!(target instanceof HTMLElement)) return;
@@ -264,6 +315,7 @@
 	style={cls(
 		`position-anchor: ${anchorName}; --popover-gap: ${offset}px; --viewport-margin: ${viewportMargin}px;`,
 		arrowSize && `--arrow-size:${arrowSizePx[arrowSize]}px;`,
+		dropShadow && `--popover-drop-shadow:${dropShadow};`,
 		open && !measured && 'visibility:hidden;'
 	)}
 	ontoggle={(e) => (open = e.newState === 'open')}
@@ -305,6 +357,7 @@
 		margin: 0;
 		outline: hidden;
 		overflow: clip;
+		filter: var(--popover-drop-shadow, none);
 		/* combines user gap + arrow clearance. arrow is a 45° rotated square of side
 		   --arrow-size centered on the box edge, so it protrudes by half its diagonal
 		   ≈ 0.707 × --arrow-size. */

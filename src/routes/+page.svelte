@@ -46,7 +46,7 @@
 			row: 1,
 			buttonText: 'top',
 			content: 'Content',
-			classname: 'bg-blue-500 px-6 py-6'
+			classname: 'shadow-2xl shadow-black bg-blue-500 px-6 py-6'
 		},
 		{
 			id: 'top-end',
@@ -90,13 +90,13 @@
 		},
 		{
 			id: 'shadow',
-			placement: 'bottom',
+			placement: 'top',
 			align: 'justify-center',
 			col: 3,
 			row: 3,
 			buttonText: 'shadow',
-			content: 'shadow-2xl shadow-red-500',
-			classname: 'bg-green-500 shadow-2xl shadow-red-500 px-6 py-6'
+			content: 'shadow-4xl',
+			classname: 'bg-green-500 shadow-4xl shadow-red-500 px-6 py-6'
 		},
 		{
 			id: 'right',
@@ -169,6 +169,7 @@
 	let triggerBy = $state<TriggerBy>('click');
 	let autoPlacement = $state(true);
 	let offset = $state(0);
+	let viewportMargin = $state(28);
 	let grouped = $state(false);
 	let matchSize = $state(false);
 	let portal = $state(false);
@@ -219,6 +220,7 @@
 		{triggerBy}
 		bind:autoPlacement
 		bind:offset
+		bind:viewportMargin
 		{grouped}
 		bind:matchSize
 		bind:portal
@@ -257,6 +259,7 @@
 						placement={cell.placement}
 						{autoPlacement}
 						{offset}
+						{viewportMargin}
 						{triggerBy}
 						{matchSize}
 						{resize}
