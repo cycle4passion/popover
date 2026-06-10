@@ -50,7 +50,7 @@
 			row: 1,
 			buttonText: 'top',
 			content: 'Content',
-			classname: 'shadow-2xl shadow-black bg-blue-500 px-6 py-6'
+			classname: 'bg-blue-500 px-6 py-6'
 		},
 		{
 			id: 'top-end',
@@ -99,8 +99,8 @@
 			col: 3,
 			row: 3,
 			buttonText: 'shadow',
-			content: 'shadow-4xl',
-			classname: 'bg-green-500 shadow-4xl shadow-red-500 px-6 py-6'
+			content: 'shadow-2xl',
+			classname: 'bg-green-500 shadow-2xl shadow-black px-6 py-6'
 		},
 		{
 			id: 'right',
@@ -270,8 +270,9 @@
 						{portal}
 						{transition}
 						arrow={arrow ? arrowSize : false}
-						class={`max-w-100 rounded-lg border-2 border-red-500 bg-black px-3 py-2 text-sm text-white ${cell.popoverClass ?? ''}`}
-						style={cell.popoverStyle ?? ''}
+						classes={{
+							box: `max-w-100 rounded-lg border-2 border-red-500 bg-black px-3 py-2 text-sm text-white ${cell.popoverClass ?? ''}`
+						}}
 					>
 						{content}
 					</Popover>

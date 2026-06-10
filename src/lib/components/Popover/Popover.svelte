@@ -35,12 +35,12 @@
 	type Props = {
 		/** Whether the popover is visible. Bindable. */
 		open?: boolean;
-		/** Show a directional arrow connecting the popover to its anchor. Pass `true` for default 'md' size, or 'sm' | 'md' | 'lg'. The arrow inherits bg/border/drop-shadow from the Popover Box via CSS; override its size with the `--arrow-size` CSS var. @default false */
-		arrow?: boolean | ArrowSize;
 		/** Preferred placement relative to the anchor. May be flipped by the browser when space is constrained; the arrow follows the actual rendered side. @default 'top' */
 		placement?: Placement;
 		/** Whether to use Anchor positioning API. @default true */
 		autoPlacement?: boolean;
+		/** Show a directional arrow connecting the popover to its anchor. Pass `true` for default 'md' size, or 'sm' | 'md' | 'lg'. The arrow inherits bg/border/drop-shadow from the Popover Box via CSS; override its size with the `--arrow-size` CSS var. @default false */
+		arrow?: boolean | ArrowSize;
 		/** Gap in pixels between the popover and its anchor. @default 0 */
 		offset?: number;
 		/** Popovers sharing the same group name open and close together. */
@@ -56,13 +56,8 @@
 		/** Constrains the popover to available viewport space. 'width', 'height', or true for both. @default false */
 		resize?: boolean | 'width' | 'height';
 		portal?: PortalOptions | boolean;
-		/** Whether the popover is rendered in a portal. @default false */
-		style?: string;
-		/** Additional inline styles applied to the Popover Box. */
-		/** Additional CSS classes applied to the Popover Box (the visible styled wrapper). The arrow inherits bg/border/drop-shadow from here. */
-		class?: string;
-		/** Additional CSS classes applied to the outer positioning element. Rarely needed. */
-		containerClass?: string;
+		/** Additional CSS classes. `root` targets the outer positioning element; `box` targets the popover box — bg/border set here are inherited by the `::after` arrow. */
+		classes?: { root?: string; box?: string };
 		/** Svelte transition for open/close. @default logicalSlideFade */
 		transition?: TransitionFn;
 		children?: Snippet;
@@ -75,6 +70,7 @@
 		open = $bindable(false),
 		placement = 'bottom' as Placement,
 		autoPlacement = true,
+		arrow = false,
 		offset = 0,
 		group,
 		anchorEl,
@@ -83,11 +79,8 @@
 		viewportMargin = 8,
 		resize = false as boolean | 'width' | 'height',
 		portal = false,
-		style = '',
-		class: className = '',
-		containerClass = '',
+		classes = {} as { root?: string; box?: string },
 		transition: transitionProp = undefined,
-		arrow = false,
 		children,
 		...restProps
 	}: Props = $props();
@@ -357,7 +350,7 @@
 		matchSize && 'match-size',
 		(resize === true || resize === 'width') && 'resize-width',
 		(resize === true || resize === 'height') && 'resize-height',
-		containerClass
+		classes.root
 	)}
 	style={cls(
 		`position-anchor: ${anchorName}; --popover-gap: ${offset}px; --viewport-margin: ${viewportMargin}px;`,
@@ -377,8 +370,7 @@
 				data-popover-box
 				data-arrow={showArrow || undefined}
 				data-effective-side={showArrow ? effectiveSide : undefined}
-				class={className}
-				{style}
+				class={classes.box}
 				transition:transition
 				onoutroend={() => {
 					popoverEl?.hidePopover();
@@ -390,7 +382,7 @@
 		{:else}
 			<!--  sizer: gives popover dimensions so position-area can resolve and we can measure;
 						parent popover has visibility:hidden so this is not painted -->
-			<div data-popover-box class={className} aria-hidden="true">
+			<div data-popover-box class={classes.box} aria-hidden="true">
 				{@render children?.()}
 			</div>
 		{/if}
