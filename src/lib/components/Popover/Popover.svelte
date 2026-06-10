@@ -100,6 +100,7 @@
 	let dropShadow = $state('');
 
 	function popoverEvents(anchor: HTMLElement, el: HTMLElement) {
+		/* Hover Related Events */
 		if (triggerBy === 'hover') {
 			let closeTimer: ReturnType<typeof setTimeout> | undefined;
 

@@ -199,7 +199,7 @@
 		none: noop
 	};
 
-	const transition = fade; //$derived(transitions[transitionKey]);
+	const transition = $derived(transitions[transitionKey]);
 
 	function setTrigger(t: TriggerBy) {
 		triggerBy = t;
