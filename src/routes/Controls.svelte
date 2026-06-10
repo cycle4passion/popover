@@ -3,7 +3,7 @@
 </script>
 
 <script lang="ts">
-	import type { TriggerBy, ArrowSize } from '$lib/components/Popover/types';
+	import type { TriggerBy, ArrowSize } from '$lib/components/Popover/Popover.svelte';
 	import { ThemeSwitch } from 'svelte-ux';
 
 	type Props = {
