@@ -40,7 +40,7 @@
 			row: 1,
 			buttonText: 'top-start',
 			content: 'Content',
-			classname: 'bg-red-500 px-6 py-6'
+			classname: 'flex justidy-center bg-red-500 px-6 py-6'
 		},
 		{
 			id: 'top',

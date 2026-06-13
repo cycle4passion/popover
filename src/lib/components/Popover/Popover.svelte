@@ -1,6 +1,8 @@
 <script module lang="ts">
 	import type { TransitionConfig } from 'svelte/transition';
+	import type { TransitionInput } from '$lib/transitions/composeTransitions';
 
+	export type { TransitionInput };
 	export type TransitionFn = (node: Element, params?: Record<string, unknown>) => TransitionConfig;
 	export type Side = 'top' | 'bottom' | 'left' | 'right';
 	export type Placement = Side | `${Side}-${'start' | 'end'}`;
@@ -58,8 +60,17 @@
 		portal?: PortalOptions | boolean;
 		/** Additional CSS classes. `root` targets the outer positioning element; `box` targets the popover box — bg/border set here are inherited by the `::after` arrow. */
 		classes?: { root?: string; box?: string };
-		/** Svelte transition for open/close. @default logicalSlideFade */
-		transition?: TransitionFn;
+		/**
+		 * Svelte transition for open/close. Accepts a single transition function,
+		 * a `[fn, params]` tuple, or an array of either — multiple transitions are
+		 * composed to run in parallel. `slide`/`fly` are upgraded to side-aware
+		 * variants that animate from the anchor side.
+		 * @example transition={fade}
+		 * @example transition={[fade, { duration: 150 }]}
+		 * @example transition={[fly, [scale, { start: 0.9 }]]}
+		 * @default fly + scale — flies in from the anchor side while scaling/fading in
+		 */
+		transition?: TransitionFn | TransitionInput;
 		children?: Snippet;
 	} & Record<string, unknown>;
 
