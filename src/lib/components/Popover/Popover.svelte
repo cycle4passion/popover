@@ -197,6 +197,8 @@
 				// Closed before first measurement: no outro will fire, so hide directly.
 				if (!measured && popoverEl?.matches(':popover-open')) popoverEl.hidePopover();
 				measured = false;
+				el.style.removeProperty('--arrow-x');
+				el.style.removeProperty('--arrow-y');
 				return;
 			}
 			const measure = () => {
@@ -210,6 +212,11 @@
 				else if (p.left >= a.right) next = 'right';
 				if (next !== effectiveSide) effectiveSide = next;
 				if (!measured) measured = true;
+				if (showArrow) {
+					const edge = arrowSizePx[arrowSize!];
+					el.style.setProperty('--arrow-x', `${Math.max(edge, Math.min((a.left + a.width / 2) - p.left, p.width - edge))}px`);
+					el.style.setProperty('--arrow-y', `${Math.max(edge, Math.min((a.top + a.height / 2) - p.top, p.height - edge))}px`);
+				}
 			};
 			// Synchronous first measurement — openEvents effect already ran showPopover,
 			// and the !measured branch has rendered a sizer so the popover has dimensions.
@@ -435,7 +442,7 @@
 
 	[data-popover-box][data-arrow][data-effective-side='top']::after {
 		bottom: calc(-1 * var(--arrow-size, 8px) / 2);
-		left: 50%;
+		left: var(--arrow-x, 50%);
 		transform: translate(-50%, 0) rotate(45deg);
 		border-top-color: transparent;
 		border-left-color: transparent;
@@ -443,7 +450,7 @@
 
 	[data-popover-box][data-arrow][data-effective-side='bottom']::after {
 		top: calc(-1 * var(--arrow-size, 8px) / 2);
-		left: 50%;
+		left: var(--arrow-x, 50%);
 		transform: translate(-50%, 0) rotate(45deg);
 		border-bottom-color: transparent;
 		border-right-color: transparent;
@@ -451,7 +458,7 @@
 
 	[data-popover-box][data-arrow][data-effective-side='left']::after {
 		right: calc(-1 * var(--arrow-size, 8px) / 2);
-		top: 50%;
+		top: var(--arrow-y, 50%);
 		transform: translate(0, -50%) rotate(45deg);
 		border-bottom-color: transparent;
 		border-left-color: transparent;
@@ -459,7 +466,7 @@
 
 	[data-popover-box][data-arrow][data-effective-side='right']::after {
 		left: calc(-1 * var(--arrow-size, 8px) / 2);
-		top: 50%;
+		top: var(--arrow-y, 50%);
 		transform: translate(0, -50%) rotate(45deg);
 		border-top-color: transparent;
 		border-right-color: transparent;
