@@ -546,25 +546,40 @@
 				focusIntoBox();
 			}
 
-			// Watch for flips each frame (cheap, lag-immune) and reposition the arrow
-			// only when the side actually flips. measureFlip re-decides the sizing-mode
-			// side from anchor geometry as the user scrolls.
+			// Re-check the side only when the anchor can actually move relative to the
+			// viewport: on scroll (capture catches any ancestor scroll container) or
+			// resize. The popover itself stays attached via CSS anchor positioning, so
+			// this only updates our discrete side decision (browser flip / sizing-mode
+			// flip) and the arrow. A scroll burst is throttled to one rAF — idle popovers
+			// do no work (vs. the old permanent per-frame rAF loop). The arrow offset is
+			// scroll-invariant, so reposition it only when the side actually flips
+			// (per-frame writes jittered it as the popover's rect lagged the scroll).
 			let rafId = 0;
-			const tick = () => {
-				measureFlip();
-				if (measureSide()) positionArrow();
-				rafId = requestAnimationFrame(tick);
+			const onScrollResize = () => {
+				if (rafId) return;
+				rafId = requestAnimationFrame(() => {
+					rafId = 0;
+					measureFlip();
+					if (measureSide()) positionArrow();
+				});
 			};
-			rafId = requestAnimationFrame(tick);
+			window.addEventListener('scroll', onScrollResize, { capture: true, passive: true });
+			window.addEventListener('resize', onScrollResize);
 
-			// Reposition when the anchor or popover changes size (match-size,
-			// content changes) — these are not captured by the flip check above.
-			const ro = new ResizeObserver(() => positionArrow());
+			// Reposition when the anchor or popover changes size (match-size, content
+			// changes, sizing-mode fit re-check) — not captured by scroll/resize above.
+			const ro = new ResizeObserver(() => {
+				measureFlip();
+				measureSide();
+				positionArrow();
+			});
 			ro.observe(target);
 			ro.observe(el);
 
 			return () => {
 				cancelAnimationFrame(rafId);
+				window.removeEventListener('scroll', onScrollResize, { capture: true });
+				window.removeEventListener('resize', onScrollResize);
 				ro.disconnect();
 			};
 		});
