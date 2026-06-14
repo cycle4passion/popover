@@ -58,7 +58,9 @@ A named set of **Popovers** that open and close together. Anchors and members sh
 - A **Popover** may render exactly one **Arrow**.
 - An **Arrow** points from its **Popover** toward the **Anchor**, on the **Effective Side**.
 - A **Popover** may belong to zero or one **Group**.
-- A **Sizing Mode** (**Match Size** or **Expand**) requires a fixed **Side**: setting one pins the **Effective Side** to the **Declared Side**, since fitting the **Popover** to available space is incompatible with autoplacement flipping (which only triggers on overflow).
+- A **Sizing Mode** (**Match Size** or **Expand**) interacts with autoplacement on the **Main Axis** only:
+  - With autoplacement **off**, the **Side** is pinned: the **Effective Side** equals the **Declared Side**.
+  - With autoplacement **on**, the **Declared Side** is preferred (`<select>`-style): the **Popover** stays there and sizes to it, and only flips to the opposite **Main Axis** side when the **Declared Side** is _cramped_ — too little space to be usable AND the content does not already fit it — while the opposite side is roomier. Cross-axis/alignment flipping never applies under a **Sizing Mode**.
 - Under either **Sizing Mode** the **Popover** constrains its own size only; scrolling overflowing content is the consumer's responsibility (the consumer sets `overflow` on their content).
 
 ## Flagged ambiguities

@@ -60,9 +60,11 @@
 		 *     instead of matching the anchor; the main axis caps the same as `'match'`.
 		 * @default 'none'
 		 */
-		sizing?: 'none' | 'match' | 'expand';
+		sizing?: 'none' | 'match' | 'expand' | `${number}%` | number;
 		/** Minimum margin in pixels between the popover and the viewport edge. Used by autoPlacement and by the `match`/`expand` sizing clamps. @default 8 */
 		viewportMargin?: number;
+		/** Maximum viewport ratio for top/bottom width or left/right height. Accepts `0.75` or `'75%'`. @default 0.75 */
+		viewportRatio?: `${number}%` | number;
 		portal?: PortalOptions | boolean;
 		/** Additional CSS classes. `root` targets the outer positioning element; `box` targets the popover box — bg/border set here are inherited by the `::after` arrow. */
 		classes?: { root?: string; box?: string };
@@ -92,9 +94,10 @@
 		group,
 		anchorEl,
 		triggerBy = 'click',
-		sizing = 'none' as 'none' | 'match' | 'expand',
+		sizing = 'none' as 'none' | 'match' | 'expand' | `${number}%` | number,
 		viewportMargin = 8,
 		portal = false,
+		viewportRatio = 0.75,
 		classes = {} as { root?: string; box?: string },
 		transition: transitionProp = undefined,
 		children,
@@ -102,17 +105,89 @@
 	}: Props = $props();
 
 	const declaredSide = $derived(placement.split('-')[0] as Side);
-	let effectiveSide = $derived<Side>(declaredSide);
+
+	// Autoplacement under a sizing mode: the clamp stops the box from ever overflowing,
+	// so the native overflow-flip never fires. Instead we flip the *side* in JS when the
+	// declared side is genuinely cramped — declared-side preference, <select>-style.
+	// MIN_SIZE is the minimum usable main-axis space (px) before we look to flip; the
+	// flip only happens if the opposite side is actually roomier (never into a smaller
+	// side). Flipping swaps the placement class, which reuses every per-placement rule
+	// (position-area, margins, match/expand fill) for the opposite side — no extra CSS.
+	const MIN_SIZE = 144;
+	const DEFAULT_VIEWPORT_RATIO = 0.75;
+	function toViewportRatio(value: `${number}%` | number | undefined): number {
+		if (value === undefined || value === null) return DEFAULT_VIEWPORT_RATIO;
+		if (typeof value === 'number') {
+			if (!Number.isFinite(value)) return DEFAULT_VIEWPORT_RATIO;
+			return value > 1 ? Math.min(value / 100, 1) : Math.max(Math.min(value, 1), 0);
+		}
+		const raw = value.trim();
+		const isPercent = raw.endsWith('%');
+		const parsed = parseFloat(isPercent ? raw.slice(0, -1) : raw);
+		if (!Number.isFinite(parsed)) return DEFAULT_VIEWPORT_RATIO;
+		const ratio = isPercent ? parsed / 100 : parsed;
+		return ratio > 1 ? Math.min(ratio / 100, 1) : Math.max(Math.min(ratio, 1), 0);
+	}
+	// sizing may itself be a ratio (e.g. '75%' or 0.75). If so we treat the
+	// explicit sizing modes ('match'/'expand'/'none') as unset and derive the
+	// viewport ratio from the sizing value. `sizingMode` normalizes to the three
+	// canonical modes for internal checks.
+	const sizingMode = $derived(() =>
+		typeof sizing === 'string' && (sizing === 'none' || sizing === 'match' || sizing === 'expand')
+			? sizing
+			: 'none'
+	);
+
+	const viewportRatioValue = $derived(() => {
+		if (typeof sizing === 'number' || (typeof sizing === 'string' && sizing.trim().endsWith('%'))) {
+			return toViewportRatio(sizing as `${number}%` | number | undefined);
+		}
+		return toViewportRatio(viewportRatio);
+	});
+	const flipSide: Record<Side, Side> = {
+		top: 'bottom',
+		bottom: 'top',
+		left: 'right',
+		right: 'left'
+	};
+	let sizeFlip = $state(false);
+	const effectivePlacement = $derived<Placement>(
+		autoPlacement && sizingMode() !== 'none' && sizeFlip
+			? ((flipSide[declaredSide] +
+					(placement.includes('-') ? placement.slice(placement.indexOf('-')) : '')) as Placement)
+			: placement
+	);
+
+	// Gates the transitioning Popover Box until the side has been measured from the
+	// actually-rendered popover position. Without this, the intro transition plays from
+	// declaredSide for one frame after a CSS flip.
+	let measured = $state(false);
+
+	// In a sizing mode WE own the flip (no CSS position-try), so the rendered side is
+	// exactly effectivePlacement's side — derive it directly so the arrow's side moves
+	// in the same reactive flush as the box's position (no transient wrong-side arrow on
+	// flip). For sizing:none the browser flips, so fall back to the measured side.
+	let measuredSide = $state<Side>('bottom');
+	const effectiveSide = $derived<Side>(
+		sizingMode() !== 'none'
+			? (effectivePlacement.split('-')[0] as Side)
+			: measured
+				? measuredSide
+				: declaredSide
+	);
 	const transition: TransitionFn = $derived(normalizeTransition(transitionProp, effectiveSide));
 	const arrowSize: ArrowSize | null = $derived(
 		arrow === false ? null : arrow === true ? 'md' : arrow
 	);
 	const showArrow = $derived(arrowSize !== null);
+	const viewportConstraint = $derived(() => {
+		const pct = viewportRatioValue() * 100;
+		// Apply both constraints so popovers on any side cannot exceed the
+		// specified viewport fraction in either dimension. This prevents left/right
+		// popovers from growing too wide when a percent sizing is used.
+		return `max-width: ${pct}vw; max-height: ${pct}vh;`;
+	});
 
-	// Gates the transitioning Popover Box until effectiveSide has been measured
-	// from the actually-rendered popover position. Without this, the intro
-	// transition plays from declaredSide for one frame after a CSS flip.
-	let measured = $state(false);
 	let dropShadow = $state('');
 
 	function popoverEvents(anchor: HTMLElement, el: HTMLElement) {
@@ -220,9 +295,63 @@
 				else if (p.right <= a.left) next = 'left';
 				else if (p.left >= a.right) next = 'right';
 				if (!measured) measured = true;
-				if (next === effectiveSide) return false;
-				effectiveSide = next;
+				if (next === measuredSide) return false;
+				// TEMP DEBUG: capture geometry on every browser flip to diagnose oscillation
+				console.log('FLIP_DBG', placement, `${measuredSide}->${next}`, {
+					vh: window.innerHeight,
+					aTop: Math.round(a.top),
+					aBottom: Math.round(a.bottom),
+					pTop: Math.round(p.top),
+					pBottom: Math.round(p.bottom),
+					pH: Math.round(p.height),
+					roomAbove: Math.round(a.top),
+					roomBelow: Math.round(window.innerHeight - a.bottom),
+					overflowsTopSide: p.height > a.top,
+					overflowsBottomSide: p.height > window.innerHeight - a.bottom
+				});
+				measuredSide = next;
 				return true;
+			};
+
+			// Declared-side preference under a sizing mode (see sizeFlip / MIN_SIZE):
+			// flip the main-axis side only when the declared side is cramped (< MIN_SIZE)
+			// AND the opposite side is roomier — but NOT if the content already fits the
+			// declared side (a short popover in a tight space needn't move). Gaps are pure
+			// anchor geometry; the fit check reads the rendered box, which under the clamp
+			// grows to the content size up to the gap, so boxMain < gap ⇒ it fit.
+			const measureFlip = () => {
+				if (!(autoPlacement && sizingMode() !== 'none')) {
+					sizeFlip = false;
+					return;
+				}
+				const a = target.getBoundingClientRect();
+				// Usable content space on a side: anchor→viewport-edge gap, less the near
+				// margin (offset + the arrow's diagonal inset) and the far viewport margin.
+				const near = offset + (showArrow ? arrowSizePx[arrowSize!] * 0.707 : 0);
+				const gap = (side: Side): number => {
+					switch (side) {
+						case 'top':
+							return a.top - viewportMargin - near;
+						case 'bottom':
+							return window.innerHeight - a.bottom - viewportMargin - near;
+						case 'left':
+							return a.left - viewportMargin - near;
+						case 'right':
+							return window.innerWidth - a.right - viewportMargin - near;
+					}
+				};
+				const here = gap(declaredSide);
+				const cramped = here < MIN_SIZE && gap(flipSide[declaredSide]) > here;
+				if (sizeFlip) {
+					// Already flipped: hold it only while the declared side stays cramped.
+					sizeFlip = cramped;
+				} else {
+					// On the declared side: skip the flip if the content already fits here.
+					const p = el.getBoundingClientRect();
+					const boxMain = declaredSide === 'top' || declaredSide === 'bottom' ? p.height : p.width;
+					const fits = boxMain <= 0 || boxMain < here - 1;
+					sizeFlip = !fits && cramped;
+				}
 			};
 
 			// Center the arrow on the anchor, clamped to the popover's edges. The
@@ -249,13 +378,16 @@
 
 			// Synchronous first measurement — openEvents effect already ran showPopover,
 			// and the !measured branch has rendered a sizer so the popover has dimensions.
+			measureFlip();
 			measureSide();
 			positionArrow();
 
 			// Watch for flips each frame (cheap, lag-immune) and reposition the arrow
-			// only when the side actually flips.
+			// only when the side actually flips. measureFlip re-decides the sizing-mode
+			// side from anchor geometry as the user scrolls.
 			let rafId = 0;
 			const tick = () => {
+				measureFlip();
 				if (measureSide()) positionArrow();
 				rafId = requestAnimationFrame(tick);
 			};
@@ -359,19 +491,21 @@
 	popover="manual"
 	class={cls(
 		'Popover bg-transparent',
-		// A sizing mode fits the popover to available space, which is incompatible with
-		// autoplacement flipping (it only triggers on overflow); so setting one pins
-		// the side by withholding the flip fallbacks.
-		autoPlacement && sizing === 'none' && 'anchorPositioned',
-		`placement-${placement}`,
-		sizing === 'match' && 'match-size',
-		sizing === 'expand' && 'expand',
+		// Without a sizing mode, autoplacement flips on overflow (full flip chain via
+		// .anchorPositioned). With a sizing mode the box never overflows (it clamps +
+		// scrolls), so we flip the side in JS instead (see sizeFlip / effectivePlacement)
+		// and render the flipped placement class. autoPlacement off keeps the side pinned.
+		autoPlacement && sizingMode() === 'none' && 'anchorPositioned',
+		`placement-${effectivePlacement}`,
+		sizingMode() === 'match' && 'match-size',
+		sizingMode() === 'expand' && 'expand',
 		classes.root
 	)}
 	style={cls(
-		`position-anchor: ${anchorName}; --popover-gap: ${offset}px; --viewport-margin: ${viewportMargin}px;`,
+		`position-anchor: ${anchorName}; --popover-gap: ${offset}px; --viewport-margin: ${viewportMargin}px; --popover-max-width: ${DEFAULT_VIEWPORT_RATIO * 100}vw; --popover-max-height: ${DEFAULT_VIEWPORT_RATIO * 100}vh;`,
 		arrowSize && `--arrow-size:${arrowSizePx[arrowSize]}px;`,
 		dropShadow && `--popover-drop-shadow:${dropShadow};`,
+		viewportConstraint(),
 		open && !measured && 'visibility:hidden;'
 	)}
 	ontoggle={(e) => (open = e.newState === 'open')}
@@ -387,6 +521,7 @@
 				data-arrow={showArrow || undefined}
 				data-effective-side={showArrow ? effectiveSide : undefined}
 				class={classes.box}
+				style={viewportConstraint()}
 				transition:transition
 				onoutroend={() => {
 					popoverEl?.hidePopover();
@@ -398,7 +533,7 @@
 		{:else}
 			<!--  sizer: gives popover dimensions so position-area can resolve and we can measure;
 						parent popover has visibility:hidden so this is not painted -->
-			<div data-popover-box class={classes.box} aria-hidden="true">
+			<div data-popover-box class={classes.box} aria-hidden="true" style={viewportConstraint()}>
 				{@render children?.()}
 			</div>
 		{/if}
@@ -426,6 +561,30 @@
 	/* ── Popover Box (inner styled wrapper) + ::after arrow ─────────────────── */
 	[data-popover-box] {
 		position: relative;
+	}
+
+	:is(
+			.placement-top,
+			.placement-top-start,
+			.placement-top-end,
+			.placement-bottom,
+			.placement-bottom-start,
+			.placement-bottom-end
+		)
+		> [data-popover-box] {
+		max-width: var(--popover-max-width);
+	}
+
+	:is(
+			.placement-left,
+			.placement-left-start,
+			.placement-left-end,
+			.placement-right,
+			.placement-right-start,
+			.placement-right-end
+		)
+		> [data-popover-box] {
+		max-height: var(--popover-max-height);
 	}
 
 	[data-popover-box][data-arrow]::after {

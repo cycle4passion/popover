@@ -175,7 +175,7 @@
 	let offset = $state(0);
 	let viewportMargin = $state(28);
 	let grouped = $state(false);
-	let sizing = $state<'none' | 'match' | 'expand'>('none');
+	let sizing = $state<'none' | '75%' | '50%' | 'match' | 'expand'>('none');
 	let portal = $state(false);
 	let arrow = $state(true);
 	let arrowSize = $state<ArrowSize>('md');
@@ -263,7 +263,8 @@
 						{offset}
 						{viewportMargin}
 						{triggerBy}
-						{sizing}
+						sizing={sizing === 'match' || sizing === 'expand' ? sizing : 'none'}
+						viewportRatio={sizing === '50%' || sizing === '75%' ? sizing : '75%'}
 						{portal}
 						{transition}
 						arrow={arrow ? arrowSize : false}
@@ -282,37 +283,6 @@
 					</Popover>
 				</div>
 			{/each}
-
-			<div>
-				<Toggle let:on={open} let:toggle>
-					<PopoverOld {open}>
-						<div class="overflow-scroll border bg-surface-100 p-2 shadow-sm">
-							Lorem ipsum dolor <!-- sit amet consectetur, adipisicing elit. Id numquam cumque et
-							cupiditate eveniet odit magni velit, suscipit voluptate magnam quisquam voluptatem?
-							Ducimus voluptate dolorem in consectetur fugit, aperiam ut. Nihil, quae reprehenderit
-							impedit eum cumque, praesentium possimus sunt doloribus ipsum similique unde maiores
-							dolore illo? Laborum aliquam suscipit tempora, aspernatur officia architecto enim
-							excepturi ipsa et ullam culpa. Harum? Minus mollitia similique error optio at. Dolore
-							ad nulla facilis accusamus, aperiam architecto! Minima magnam voluptas sunt eaque,
-							alias recusandae possimus praesentium, reprehenderit itaque similique architecto
-							doloribus expedita neque vel? Earum error nisi impedit quo nihil, non quibusdam porro
-							doloribus. Neque totam aliquid dicta consectetur distinctio doloribus nulla nihil
-							deserunt labore quam aliquam maiores iure enim, iusto incidunt quos numquam. Corrupti
-							quae, dolores soluta maxime maiores tempore error ab. Obcaecati sed possimus,
-							voluptatem impedit quae repudiandae magni nulla aliquam deserunt laudantium alias
-							error dolore itaque. Commodi voluptas nisi quis tenetur. Pariatur distinctio ex
-							sapiente. Modi, quos. Tempora deserunt voluptates distinctio pariatur minima dolorum
-							minus rem earum exercitationem excepturi nulla deleniti, a consequuntur tempore
-							sapiente. Aspernatur eveniet nulla sapiente distinctio vero. Doloremque, praesentium
-							minus voluptate architecto velit blanditiis reiciendis repellat commodi quis quo ullam
-							autem nihil fugiat expedita! Reprehenderit ab consectetur possimus cupiditate.
-							Voluptates, provident exercitationem. In ipsum illo consequuntur labore? Iste
-							molestiae natus neque asperiores beatae! Deleniti tempore quaerat excepturi, obcaecati -->
-						</div>
-					</PopoverOld>
-					<Button variant="fill" on:click={toggle}>SvelteUX-2</Button>
-				</Toggle>
-			</div>
 		</div>
 	</div>
 </div>

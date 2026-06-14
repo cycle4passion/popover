@@ -33,7 +33,7 @@
 		maxWidth = $bindable(400),
 		maxHeight = $bindable(400),
 		grouped,
-		sizing = $bindable<'none' | 'match' | 'expand'>('none'),
+		sizing = $bindable<'none' | '75%' | '50%' | 'match' | 'expand'>('none'),
 		portal = $bindable(false),
 		arrow = $bindable(true),
 		arrowSize = $bindable<ArrowSize>('md'),
@@ -122,10 +122,13 @@
 				class="rounded-md border-0 bg-gray-100 px-2 py-1 text-sm text-gray-700 focus:ring-2 focus:ring-red-500"
 			>
 				<option value="none">none</option>
+				<option value="75%">75%</option>
+				<option value="50%">50%</option>
 				<option value="match">match</option>
 				<option value="expand">expand</option>
 			</select>
 		</label>
+
 		<label class="flex cursor-pointer items-center gap-1.5">
 			<input type="checkbox" bind:checked={portal} class="accent-emerald-500" />
 			<span class="text-sm font-medium text-gray-600">Portal</span>
