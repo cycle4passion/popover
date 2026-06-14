@@ -18,6 +18,7 @@
 		arrowSize?: ArrowSize;
 		longContent?: boolean;
 		transitionKey?: TransitionKey;
+		transitionOut?: boolean;
 		transitionKeys: readonly TransitionKey[];
 		onTriggerChange: (t: TriggerBy) => void;
 		onGroupedChange: (v: boolean) => void;
@@ -35,6 +36,7 @@
 		arrowSize = $bindable<ArrowSize>('md'),
 		longContent = $bindable(false),
 		transitionKey = $bindable<TransitionKey>('default'),
+		transitionOut = $bindable(false),
 		transitionKeys,
 		onTriggerChange,
 		onGroupedChange
@@ -101,6 +103,10 @@
 				<option value={t}>{t}</option>
 			{/each}
 		</select>
+		<label class="flex cursor-pointer items-center gap-1.5">
+			<input type="checkbox" bind:checked={transitionOut} class="accent-indigo-500" />
+			<span class="text-sm font-medium text-gray-600">Out</span>
+		</label>
 	</div>
 
 	<ThemeSwitch />

@@ -96,7 +96,7 @@
 			col: 3,
 			row: 3,
 			buttonText: 'shadow',
-			content: 'shadow-2xl',
+			content: 'shadow-2xl also on Popover/Arrow',
 			classname: 'bg-green-500 shadow-2xl shadow-black px-6 py-6'
 		},
 		{
@@ -178,12 +178,13 @@
 	let arrowSize = $state<ArrowSize>('md');
 	let longContent = $state(false);
 
-	const content = $derived(
+	/* 	const content = $derived(
 		longContent
 			? 'Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam'
 			: 'Content'
-	);
+	); */
 	let transitionKey = $state<TransitionKey>('default');
+	let transitionOut = $state(false);
 
 	const noop = (): TransitionConfig => ({ duration: 0 });
 	const transitions: Record<string, TransitionFn | undefined> = {
@@ -228,6 +229,7 @@
 		bind:arrowSize
 		bind:longContent
 		bind:transitionKey
+		bind:transitionOut
 		transitionKeys={Object.keys(transitions) as TransitionKey[]}
 		onTriggerChange={setTrigger}
 		onGroupedChange={setGrouped}
@@ -243,10 +245,9 @@
 					class={`flex ${cell.align}`}
 					style={`grid-column-start: ${cell.col}; grid-row-start: ${cell.row}`}
 				>
+					<!-- triggerBy="click"/"hover" are now wired inside Popover; the anchor
+						 needs no manual open handling. -->
 					<button
-						onclick={() => {
-							if (triggerBy === 'click') openStates[cell.id] = !openStates[cell.id];
-						}}
 						class={`rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 ${cell.classname}`}
 					>
 						{cell.buttonText}
@@ -260,22 +261,24 @@
 						{offset}
 						{viewportMargin}
 						{triggerBy}
-						sizing={sizing === 'match' || sizing === 'expand' ? sizing : 'none'}
-						viewportRatio={sizing === '50%' || sizing === '75%' ? sizing : '75%'}
+						{sizing}
 						{portal}
 						{transition}
+						{transitionOut}
 						arrow={arrow ? arrowSize : false}
 						classes={{
 							box: `rounded-lg border-2 border-red-500 bg-black px-3 py-2 text-sm text-white ${cell.popoverClass ?? ''}`
 						}}
 					>
-						<!-- Sizing contract: the popover only constrains its box; the consumer owns
-							 scrolling. With sizing match/expand, set overflow on your content. -->
+						<!-- 	Sizing contract: the popover only constrains its box; the consumer owns
+									scrolling. With sizing match/expand, set overflow on your content. -->
 						<div
 							class="overflow-y-auto"
 							style="scrollbar-color: white black; scrollbar-gutter: stable both-edges;"
 						>
-							{content}
+							{longContent
+								? 'Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Quisquam, voluptas. Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, voluptas. Quisquam'
+								: cell.content}
 						</div>
 					</Popover>
 				</div>
