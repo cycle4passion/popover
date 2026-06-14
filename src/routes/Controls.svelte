@@ -14,12 +14,11 @@
 		maxWidth?: number;
 		maxHeight?: number;
 		grouped: boolean;
-		matchSize?: boolean;
+		sizing?: 'none' | 'match' | 'expand';
 		portal?: boolean;
 		arrow?: boolean;
 		arrowSize?: ArrowSize;
 		longContent?: boolean;
-		resize?: boolean | 'width' | 'height';
 		transitionKey?: TransitionKey;
 		transitionKeys: readonly TransitionKey[];
 		onTriggerChange: (t: TriggerBy) => void;
@@ -34,12 +33,11 @@
 		maxWidth = $bindable(400),
 		maxHeight = $bindable(400),
 		grouped,
-		matchSize = $bindable(false),
+		sizing = $bindable<'none' | 'match' | 'expand'>('none'),
 		portal = $bindable(false),
 		arrow = $bindable(true),
 		arrowSize = $bindable<ArrowSize>('md'),
 		longContent = $bindable(false),
-		resize = $bindable<boolean | 'width' | 'height'>(false),
 		transitionKey = $bindable<TransitionKey>('default'),
 		transitionKeys,
 		onTriggerChange,
@@ -109,24 +107,6 @@
 		</select>
 	</div>
 
-	<!-- Resize -->
-	<div class="flex items-center gap-2 rounded-xl bg-white px-4 py-2 shadow ring-1 ring-black/10">
-		<label for="resize-select" class="text-sm font-medium text-gray-600">Resize</label>
-		<select
-			id="resize-select"
-			value={String(resize)}
-			onchange={(e) => {
-				const v = (e.target as HTMLSelectElement).value;
-				resize = v === 'true' ? true : v === 'false' ? false : (v as 'width' | 'height');
-			}}
-			class="rounded-md border-0 bg-gray-100 px-2 py-1 text-sm text-gray-700 focus:ring-2 focus:ring-indigo-500"
-		>
-			<option value="false">off</option>
-			<option value="width">width</option>
-			<option value="height">height</option>
-			<option value="true">both</option>
-		</select>
-	</div>
 	<ThemeSwitch />
 	<!-- Toggles -->
 	<div class="flex items-center gap-4 rounded-xl bg-white px-4 py-2 shadow ring-1 ring-black/10">
@@ -135,8 +115,16 @@
 			<span class="text-sm font-medium text-gray-600">Auto placement</span>
 		</label>
 		<label class="flex cursor-pointer items-center gap-1.5">
-			<input type="checkbox" bind:checked={matchSize} class="accent-red-500" />
-			<span class="text-sm font-medium text-gray-600">Match size</span>
+			<span class="text-sm font-medium text-gray-600">Sizing</span>
+			<select
+				bind:value={sizing}
+				aria-label="Sizing mode"
+				class="rounded-md border-0 bg-gray-100 px-2 py-1 text-sm text-gray-700 focus:ring-2 focus:ring-red-500"
+			>
+				<option value="none">none</option>
+				<option value="match">match</option>
+				<option value="expand">expand</option>
+			</select>
 		</label>
 		<label class="flex cursor-pointer items-center gap-1.5">
 			<input type="checkbox" bind:checked={portal} class="accent-emerald-500" />

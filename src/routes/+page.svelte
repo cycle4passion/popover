@@ -175,12 +175,11 @@
 	let offset = $state(0);
 	let viewportMargin = $state(28);
 	let grouped = $state(false);
-	let matchSize = $state(false);
+	let sizing = $state<'none' | 'match' | 'expand'>('none');
 	let portal = $state(false);
 	let arrow = $state(true);
 	let arrowSize = $state<ArrowSize>('md');
 	let longContent = $state(false);
-	let resize = $state<boolean | 'width' | 'height'>(false);
 
 	const content = $derived(
 		longContent
@@ -226,12 +225,11 @@
 		bind:autoPlacement
 		bind:offset
 		bind:viewportMargin
-		bind:matchSize
+		bind:sizing
 		bind:portal
 		bind:arrow
 		bind:arrowSize
 		bind:longContent
-		bind:resize
 		bind:transitionKey
 		transitionKeys={Object.keys(transitions) as TransitionKey[]}
 		onTriggerChange={setTrigger}
@@ -265,23 +263,29 @@
 						{offset}
 						{viewportMargin}
 						{triggerBy}
-						{matchSize}
-						{resize}
+						{sizing}
 						{portal}
 						{transition}
 						arrow={arrow ? arrowSize : false}
 						classes={{
-							box: `max-w-100 rounded-lg border-2 border-red-500 bg-black px-3 py-2 text-sm text-white ${cell.popoverClass ?? ''}`
+							box: `rounded-lg border-2 border-red-500 bg-black px-3 py-2 text-sm text-white ${cell.popoverClass ?? ''}`
 						}}
 					>
-						{content}
+						<!-- Sizing contract: the popover only constrains its box; the consumer owns
+							 scrolling. With sizing match/expand, set overflow on your content. -->
+						<div
+							class="overflow-y-auto"
+							style="scrollbar-color: white black; scrollbar-gutter: stable both-edges;"
+						>
+							{content}
+						</div>
 					</Popover>
 				</div>
 			{/each}
 
 			<div>
 				<Toggle let:on={open} let:toggle>
-					<PopoverOld {open} {resize}>
+					<PopoverOld {open}>
 						<div class="overflow-scroll border bg-surface-100 p-2 shadow-sm">
 							Lorem ipsum dolor <!-- sit amet consectetur, adipisicing elit. Id numquam cumque et
 							cupiditate eveniet odit magni velit, suscipit voluptate magnam quisquam voluptatem?

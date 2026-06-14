@@ -2,7 +2,6 @@
 	import type { TransitionConfig } from 'svelte/transition';
 	import type { TransitionInput } from '$lib/transitions/composeTransitions';
 
-	export type { TransitionInput };
 	export type TransitionFn = (node: Element, params?: Record<string, unknown>) => TransitionConfig;
 	export type Side = 'top' | 'bottom' | 'left' | 'right';
 	export type Placement = Side | `${Side}-${'start' | 'end'}`;
@@ -51,12 +50,19 @@
 		anchorEl?: string;
 		/** What interaction opens the popover. @default 'click' */
 		triggerBy?: TriggerBy;
-		/** When true, the popover matches its anchor size along the placement axis. Top/bottom uses width; left/right uses height. @default false */
-		matchSize?: boolean;
-		/** Minimum margin in pixels between the popover and the viewport edge when autoPlacement is enabled. @default 8 */
+		/**
+		 * Sizing mode. Both `'match'` and `'expand'` pin the side (disable autoplacement
+		 * flipping) and only CONSTRAIN the box — your content owns scrolling (set
+		 * `overflow: auto` on it).
+		 *   • `'match'`  — dropdown-style: the cross axis matches the anchor (top/bottom →
+		 *     width; left/right → height); the main axis caps to the anchor→viewport gap.
+		 *   • `'expand'` — the cross axis fills to the viewport edge (less `viewportMargin`)
+		 *     instead of matching the anchor; the main axis caps the same as `'match'`.
+		 * @default 'none'
+		 */
+		sizing?: 'none' | 'match' | 'expand';
+		/** Minimum margin in pixels between the popover and the viewport edge. Used by autoPlacement and by the `match`/`expand` sizing clamps. @default 8 */
 		viewportMargin?: number;
-		/** Constrains the popover to available viewport space. 'width', 'height', or true for both. @default false */
-		resize?: boolean | 'width' | 'height';
 		portal?: PortalOptions | boolean;
 		/** Additional CSS classes. `root` targets the outer positioning element; `box` targets the popover box — bg/border set here are inherited by the `::after` arrow. */
 		classes?: { root?: string; box?: string };
@@ -86,9 +92,8 @@
 		group,
 		anchorEl,
 		triggerBy = 'click',
-		matchSize = false,
+		sizing = 'none' as 'none' | 'match' | 'expand',
 		viewportMargin = 8,
-		resize = false as boolean | 'width' | 'height',
 		portal = false,
 		classes = {} as { root?: string; box?: string },
 		transition: transitionProp = undefined,
@@ -201,80 +206,70 @@
 				el.style.removeProperty('--arrow-y');
 				return;
 			}
-			const measure = () => {
+			// Detect the actually-rendered side (the browser may flip it via
+			// position-try-fallbacks). effectiveSide is discrete, so it is immune to
+			// the sub-pixel scroll lag that affects the arrow below. Returns whether
+			// the side changed this call.
+			const measureSide = (): boolean => {
 				const a = target.getBoundingClientRect();
 				const p = el.getBoundingClientRect();
-				if (p.width === 0 && p.height === 0) return;
+				if (p.width === 0 && p.height === 0) return false;
 				let next: Side = declaredSide;
 				if (p.bottom <= a.top) next = 'top';
 				else if (p.top >= a.bottom) next = 'bottom';
 				else if (p.right <= a.left) next = 'left';
 				else if (p.left >= a.right) next = 'right';
-				if (next !== effectiveSide) effectiveSide = next;
 				if (!measured) measured = true;
-				if (showArrow) {
-					const edge = arrowSizePx[arrowSize!];
-					el.style.setProperty('--arrow-x', `${Math.max(edge, Math.min((a.left + a.width / 2) - p.left, p.width - edge))}px`);
-					el.style.setProperty('--arrow-y', `${Math.max(edge, Math.min((a.top + a.height / 2) - p.top, p.height - edge))}px`);
-				}
+				if (next === effectiveSide) return false;
+				effectiveSide = next;
+				return true;
 			};
+
+			// Center the arrow on the anchor, clamped to the popover's edges. The
+			// popover is rigidly anchored to the anchor, so this offset is invariant
+			// under scroll — we recompute it ONLY when the geometry actually changes
+			// (open, flip, resize), never per frame. Per-frame writes were what made
+			// the arrow jitter while scrolling: the popover's main-thread rect lags
+			// its compositor-scrolled position, so the anchor−popover delta oscillated.
+			const positionArrow = () => {
+				if (!showArrow) return;
+				const a = target.getBoundingClientRect();
+				const p = el.getBoundingClientRect();
+				if (p.width === 0 && p.height === 0) return;
+				const edge = arrowSizePx[arrowSize!];
+				el.style.setProperty(
+					'--arrow-x',
+					`${Math.round(Math.max(edge, Math.min(a.left + a.width / 2 - p.left, p.width - edge)))}px`
+				);
+				el.style.setProperty(
+					'--arrow-y',
+					`${Math.round(Math.max(edge, Math.min(a.top + a.height / 2 - p.top, p.height - edge)))}px`
+				);
+			};
+
 			// Synchronous first measurement — openEvents effect already ran showPopover,
 			// and the !measured branch has rendered a sizer so the popover has dimensions.
-			measure();
+			measureSide();
+			positionArrow();
+
+			// Watch for flips each frame (cheap, lag-immune) and reposition the arrow
+			// only when the side actually flips.
 			let rafId = 0;
 			const tick = () => {
-				measure();
+				if (measureSide()) positionArrow();
 				rafId = requestAnimationFrame(tick);
 			};
 			rafId = requestAnimationFrame(tick);
-			return () => cancelAnimationFrame(rafId);
-		});
 
-		$effect(() => {
-			if (!resize) return;
-			if (!open) return;
-			if (!(target instanceof HTMLElement)) return;
-
-			const totalOffset = offset + (showArrow ? arrowSizePx[arrowSize!] * 0.707 : 0);
-			const margin = viewportMargin;
-
-			let rafId = 0;
-			const tick = () => {
-				const a = target.getBoundingClientRect();
-				const side = effectiveSide;
-
-				if (resize === true || resize === 'width') {
-					let maxW: number;
-					if (side === 'left') {
-						maxW = a.left - totalOffset - margin;
-					} else if (side === 'right') {
-						maxW = window.innerWidth - a.right - totalOffset - margin;
-					} else {
-						maxW = window.innerWidth - 2 * margin;
-					}
-					el.style.maxWidth = `${Math.max(0, maxW)}px`;
-				}
-
-				if (resize === true || resize === 'height') {
-					let maxH: number;
-					if (side === 'top') {
-						maxH = a.top - totalOffset - margin;
-					} else if (side === 'bottom') {
-						maxH = window.innerHeight - a.bottom - totalOffset - margin;
-					} else {
-						maxH = window.innerHeight - 2 * margin;
-					}
-					el.style.maxHeight = `${Math.max(0, maxH)}px`;
-				}
-
-				rafId = requestAnimationFrame(tick);
-			};
-			rafId = requestAnimationFrame(tick);
+			// Reposition when the anchor or popover changes size (match-size,
+			// content changes) — these are not captured by the flip check above.
+			const ro = new ResizeObserver(() => positionArrow());
+			ro.observe(target);
+			ro.observe(el);
 
 			return () => {
 				cancelAnimationFrame(rafId);
-				el.style.removeProperty('max-width');
-				el.style.removeProperty('max-height');
+				ro.disconnect();
 			};
 		});
 
@@ -364,11 +359,13 @@
 	popover="manual"
 	class={cls(
 		'Popover bg-transparent',
-		autoPlacement && 'anchorPositioned',
+		// A sizing mode fits the popover to available space, which is incompatible with
+		// autoplacement flipping (it only triggers on overflow); so setting one pins
+		// the side by withholding the flip fallbacks.
+		autoPlacement && sizing === 'none' && 'anchorPositioned',
 		`placement-${placement}`,
-		matchSize && 'match-size',
-		(resize === true || resize === 'width') && 'resize-width',
-		(resize === true || resize === 'height') && 'resize-height',
+		sizing === 'match' && 'match-size',
+		sizing === 'expand' && 'expand',
 		classes.root
 	)}
 	style={cls(
@@ -672,7 +669,26 @@
 		}
 	}
 
-	/* ── Match anchor size ──────────────────────────────────────────────────── */
+	/* ── Sizing modes (match-size / expand) ──────────────────────────────────────
+	 *
+	 * Both require a pinned side (the `.anchorPositioned` flip fallbacks are withheld
+	 * when either is set, see the class list above), so `position-area` holds the
+	 * popover on its declared side. Its containing block is then the position-area
+	 * region — the space between the anchor and the viewport edge on the MAIN axis,
+	 * and (by default) the anchor's extent on the CROSS axis. We size against that
+	 * purely in CSS:
+	 *   • Main axis  → `max-*: stretch` (caps the margin box to the anchor→edge gap).
+	 *   • Cross axis → `match`:  `anchor-size`     (matches the anchor exactly).
+	 *                  `expand`: `stretch` to fill from the anchor's near edge to the
+	 *                            far viewport edge (centered placements borrow their
+	 *                            -start variant's span so they grow from the anchor).
+	 * The popover only CONSTRAINS its size; the consumer owns `overflow` on their
+	 * content. The Box stays `overflow: visible` so the ::after arrow escapes the
+	 * clamp (see the base [data-popover][data-arrow] rule).
+	 */
+
+	/* Lists reused below. */
+	/* Match anchor size: cross axis exact, main axis clamped to the viewport gap. */
 	:is(
 		.placement-top,
 		.placement-top-start,
@@ -681,7 +697,8 @@
 		.placement-bottom-start,
 		.placement-bottom-end
 	).match-size {
-		width: anchor-size(width);
+		width: anchor-size(width); /* cross */
+		max-height: stretch; /* main */
 	}
 
 	:is(
@@ -692,22 +709,88 @@
 		.placement-right-start,
 		.placement-right-end
 	).match-size {
-		height: anchor-size(height);
-
-		& > [data-popover-box] {
-			height: 100%;
-		}
+		height: anchor-size(height); /* cross */
+		max-width: stretch; /* main */
 	}
 
-	/* ── Resize constraints ─────────────────────────────────────────────────── */
-	/*
-	 * max-width/max-height are set by JS. Without arrow, [data-popover] already
-	 * has overflow:clip so content is clipped. With arrow, overflow:visible is
-	 * set to let the ::after protrude — override it back to clip with a clip
-	 * margin just large enough to keep the arrow visible.
-	 */
-	[data-popover][data-arrow]:is(.resize-width, .resize-height) {
-		overflow: clip;
-		overflow-clip-margin: calc(var(--arrow-size, 0px) * 0.707 + 1px);
+	/* expand: cross axis fills to the viewport edge (instead of matching the anchor);
+	   main axis caps to the anchor→edge gap, same as match-size.
+	   NB the two axes need DIFFERENT fill mechanisms (verified in-browser):
+	     • top/bottom (cross = inline): `justify-self: stretch` fills the region and the
+	       Box, a block child, follows on the inline axis automatically.
+	     • left/right (cross = block): inline `stretch` alignment does NOT carry to the
+	       Box's height, so park it (`align-self: start`) and size it with the `height:
+	       stretch` keyword instead. (The flex-bound rule below then fills the Box.) */
+	:is(
+		.placement-top,
+		.placement-top-start,
+		.placement-top-end,
+		.placement-bottom,
+		.placement-bottom-start,
+		.placement-bottom-end
+	).expand {
+		justify-self: stretch; /* cross: fill the inline region (block child fills width) */
+		max-height: stretch; /* main: cap */
+	}
+	:is(
+		.placement-left,
+		.placement-left-start,
+		.placement-left-end,
+		.placement-right,
+		.placement-right-start,
+		.placement-right-end
+	).expand {
+		align-self: start; /* cross: park at region start so height:stretch can fill it */
+		height: stretch; /* cross: fill the block region */
+		max-width: stretch; /* main: cap */
+	}
+
+	/* The aligned (-start/-end) variants already span from the anchor's near edge to
+	   a viewport edge, so they fill correctly from the `stretch` above. Centered
+	   placements only span the anchor's cross extent, so widen them to the SAME span
+	   as their -start variant (anchor near-edge → far viewport edge) and add the
+	   matching far-edge margin. The fill is anchored to the trigger and grows toward
+	   the far edge — it is not symmetric across the viewport. */
+	.placement-left.expand,
+	.placement-right.expand {
+		inset-area: var(--expand-inset); /* Chrome 125–128 */
+		position-area: var(--expand-inset); /* Chrome 129+ */
+		margin-block-end: var(--viewport-margin, 0px); /* far (bottom) edge */
+	}
+	.placement-left.expand {
+		--expand-inset: left span-bottom;
+	}
+	.placement-right.expand {
+		--expand-inset: right span-bottom;
+	}
+	.placement-top.expand,
+	.placement-bottom.expand {
+		inset-area: var(--expand-inset);
+		position-area: var(--expand-inset);
+		margin-inline-end: var(--viewport-margin, 0px); /* far (right) edge */
+	}
+	.placement-top.expand {
+		--expand-inset: top span-right;
+	}
+	.placement-bottom.expand {
+		--expand-inset: bottom span-right;
+	}
+
+	/* match-size always gives the Box a bounded HEIGHT (top/bottom clamp it via
+	   `stretch`; left/right pin it to the anchor); expand likewise bounds height
+	   (top/bottom cap the main axis, left/right fill the cross axis). Flex-bound the
+	   Box so consumer content with `overflow-y: auto` scrolls within the bound
+	   instead of spilling. The Box stays visible so the arrow shows; the consumer's
+	   scroll container is inside it. */
+	:is(.match-size, .expand) {
+		display: flex;
+		flex-direction: column;
+
+		& > [data-popover-box] {
+			flex: 1 1 auto;
+			min-height: 0;
+			display: flex;
+			flex-direction: column;
+		}
 	}
 </style>

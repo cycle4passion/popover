@@ -25,6 +25,21 @@ The user's declared position of the **Popover** relative to the **Anchor**. One 
 **Side**:
 One of `top`, `bottom`, `left`, `right`. The face of the **Anchor** the **Popover** sits against.
 
+**Main Axis**:
+For a given **Side**, the axis perpendicular to the **Anchor** edge — the direction the **Popover** extends away from the **Anchor**. Top/Bottom → vertical (height); Left/Right → horizontal (width).
+
+**Cross Axis**:
+The axis parallel to the **Anchor** edge. Top/Bottom → horizontal (width); Left/Right → vertical (height).
+
+**Match Size**:
+A **Sizing Mode** (`sizing: 'match'`) for dropdown/select-style **Popovers**: the **Popover** matches the **Anchor**'s **Cross Axis** size exactly, and is clamped on the **Main Axis** to the space between the **Anchor** and the viewport edge (less `viewportMargin`).
+
+**Expand**:
+A **Sizing Mode** (`sizing: 'expand'`) that, instead of matching the **Anchor**, fills the **Cross Axis** from the **Anchor**'s near edge to the far viewport edge (less `viewportMargin`); the **Main Axis** is clamped exactly as **Match Size**. The fill is anchored to the trigger and grows toward the far edge (not symmetric across the viewport): `-start`/centered grow toward the end edge, `-end` grows toward the start edge.
+
+**Sizing Mode**:
+A mode that constrains the **Popover** to available space — either **Match Size** or **Expand**. Setting one pins the **Side** (see Relationships).
+
 **Declared Side**:
 The **Side** the user requested via `placement`. Authoritative until measurement.
 
@@ -43,6 +58,8 @@ A named set of **Popovers** that open and close together. Anchors and members sh
 - A **Popover** may render exactly one **Arrow**.
 - An **Arrow** points from its **Popover** toward the **Anchor**, on the **Effective Side**.
 - A **Popover** may belong to zero or one **Group**.
+- A **Sizing Mode** (**Match Size** or **Expand**) requires a fixed **Side**: setting one pins the **Effective Side** to the **Declared Side**, since fitting the **Popover** to available space is incompatible with autoplacement flipping (which only triggers on overflow).
+- Under either **Sizing Mode** the **Popover** constrains its own size only; scrolling overflowing content is the consumer's responsibility (the consumer sets `overflow` on their content).
 
 ## Flagged ambiguities
 
