@@ -289,26 +289,19 @@
 				const a = target.getBoundingClientRect();
 				const p = el.getBoundingClientRect();
 				if (p.width === 0 && p.height === 0) return false;
-				let next: Side = declaredSide;
+				// Default to the LAST measured side (declaredSide only before the first
+				// measurement). During continued scrolling the anchor's and popover's
+				// main-thread rects lag each other on the compositor, so for the odd frame
+				// the box appears to overlap the anchor and none of the clean side checks
+				// match. Holding the last side there avoids snapping the arrow back to the
+				// declared side for a frame after a settled flip.
+				let next: Side = measured ? measuredSide : declaredSide;
 				if (p.bottom <= a.top) next = 'top';
 				else if (p.top >= a.bottom) next = 'bottom';
 				else if (p.right <= a.left) next = 'left';
 				else if (p.left >= a.right) next = 'right';
 				if (!measured) measured = true;
 				if (next === measuredSide) return false;
-				// TEMP DEBUG: capture geometry on every browser flip to diagnose oscillation
-				console.log('FLIP_DBG', placement, `${measuredSide}->${next}`, {
-					vh: window.innerHeight,
-					aTop: Math.round(a.top),
-					aBottom: Math.round(a.bottom),
-					pTop: Math.round(p.top),
-					pBottom: Math.round(p.bottom),
-					pH: Math.round(p.height),
-					roomAbove: Math.round(a.top),
-					roomBelow: Math.round(window.innerHeight - a.bottom),
-					overflowsTopSide: p.height > a.top,
-					overflowsBottomSide: p.height > window.innerHeight - a.bottom
-				});
 				measuredSide = next;
 				return true;
 			};

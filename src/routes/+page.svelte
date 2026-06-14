@@ -8,9 +8,6 @@
 	import Popover from '$lib/components/Popover/Popover.svelte';
 	import { fade, fly, slide, scale } from 'svelte/transition';
 	import type { TransitionConfig } from 'svelte/transition';
-	import { Button } from 'svelte-ux';
-	import { Popover as PopoverOld } from 'svelte-ux';
-	import { Toggle } from 'svelte-ux';
 	import Controls, { type TransitionKey } from './Controls.svelte';
 
 	/* 	let open = $state(false); */

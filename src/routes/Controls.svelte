@@ -11,10 +11,8 @@
 		autoPlacement?: boolean;
 		offset?: number;
 		viewportMargin?: number;
-		maxWidth?: number;
-		maxHeight?: number;
 		grouped: boolean;
-		sizing?: 'none' | 'match' | 'expand';
+		sizing?: 'none' | number | string | 'match' | 'expand';
 		portal?: boolean;
 		arrow?: boolean;
 		arrowSize?: ArrowSize;
@@ -30,8 +28,6 @@
 		autoPlacement = $bindable(true),
 		offset = $bindable(0),
 		viewportMargin = $bindable(28),
-		maxWidth = $bindable(400),
-		maxHeight = $bindable(400),
 		grouped,
 		sizing = $bindable<'none' | '75%' | '50%' | 'match' | 'expand'>('none'),
 		portal = $bindable(false),
