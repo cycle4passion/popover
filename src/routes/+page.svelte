@@ -9,6 +9,7 @@
 	import { fade, fly, slide, scale } from 'svelte/transition';
 	import type { TransitionConfig } from 'svelte/transition';
 	import Controls, { type TransitionKey } from './Controls.svelte';
+	import { tooltip } from '$lib/components/Tooltip/tooltip';
 
 	/* 	let open = $state(false); */
 
@@ -283,6 +284,7 @@
 					</Popover>
 				</div>
 			{/each}
+			<p {@attach tooltip('I am a tooltip from an attachment')} class="bg-blue-500">Hello!</p>
 		</div>
 	</div>
 </div>

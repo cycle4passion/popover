@@ -8,30 +8,6 @@
 	export type TriggerBy = 'click' | 'hover';
 	export type ArrowSize = 'sm' | 'md' | 'lg';
 
-	export const arrowSizePx = { sm: 10, md: 14, lg: 18 } satisfies Record<ArrowSize, number>;
-
-	export const placements = [
-		'top',
-		'bottom',
-		'left',
-		'right',
-		'top-start',
-		'top-end',
-		'bottom-start',
-		'bottom-end',
-		'left-start',
-		'left-end',
-		'right-start',
-		'right-end'
-	] as const;
-</script>
-
-<script lang="ts">
-	import type { Snippet } from 'svelte';
-	import { portal as attachPortal, type PortalOptions } from '$lib/attachments/portal';
-	import { cls } from '@layerstack/tailwind';
-	import { normalizeTransition } from './popover';
-
 	type Props = {
 		/** ID of the anchor element. Defaults to the previous sibling. */
 		anchorEl?: string;
@@ -57,11 +33,12 @@
 		 *     width; left/right → height); the main axis caps to the anchor→viewport gap.
 		 *   • `'expand'` — the cross axis fills to the viewport edge (less `viewportMargin`)
 		 *     instead of matching the anchor; the main axis caps the same as `'match'`.
-		 *   • a ratio (`0.5` or `'50%'`) — caps the box to that fraction of the viewport
-		 *     in both dimensions (behaves like `'none'` otherwise). Defaults to 0.75.
+		 *   • a percentage (`'50%'`) — caps the box to that fraction of the viewport
+		 *     in both dimensions (behaves like `'none'` otherwise).
+		 *   • `'none'` (default) — natural content size; no viewport cap.
 		 * @default 'none'
 		 */
-		sizing?: 'none' | 'match' | 'expand' | `${number}%` | number;
+		sizing?: 'none' | 'match' | 'expand' | `${number}%`;
 		/** Minimum margin in pixels between the popover and the viewport edge. Used by autoPlacement and by the `match`/`expand` sizing clamps. @default 8 */
 		viewportMargin?: number;
 		portal?: PortalOptions | boolean;
@@ -74,6 +51,7 @@
 		 * variants that animate from the anchor side.
 		 * @example transition={fade}
 		 * @example transition={[fade, { duration: 150 }]}
+		 * @example transition={[fly, scale]}
 		 * @example transition={[fly, [scale, { start: 0.9 }]]}
 		 * @default fly + scale — flies in from the anchor side while scaling/fading in
 		 */
@@ -87,19 +65,35 @@
 		children?: Snippet;
 	} & Record<string, unknown>;
 
-	let popoverEl = $state<HTMLElement | null>(null);
-	// crypto.randomUUID is gated to secure contexts; fall back so the component
-	// still works over plain HTTP / in non-secure embeds.
-	function uid(): string {
-		try {
-			return crypto.randomUUID().slice(0, 8);
-		} catch {
-			return Math.random().toString(36).slice(2, 10);
-		}
-	}
-	const uidStr = uid();
-	const anchorName = `--popover-anchor-${uidStr}`;
-	const popoverId = `popover-${uidStr}`;
+	export const arrowSizePx = { sm: 10, md: 14, lg: 18 } satisfies Record<ArrowSize, number>;
+	export const placements = [
+		'top',
+		'bottom',
+		'left',
+		'right',
+		'top-start',
+		'top-end',
+		'bottom-start',
+		'bottom-end',
+		'left-start',
+		'left-end',
+		'right-start',
+		'right-end'
+	] as const;
+
+	export const flipSide: Record<Side, Side> = {
+		top: 'bottom',
+		bottom: 'top',
+		left: 'right',
+		right: 'left'
+	};
+</script>
+
+<script lang="ts">
+	import type { Snippet } from 'svelte';
+	import { portal as attachPortal, type PortalOptions } from '$lib/attachments/portal';
+	import { normalizeTransition, uid, boxShadowToFilter, play, type PlayState } from './popover';
+	import { cls } from '@layerstack/tailwind';
 
 	let {
 		anchorEl,
@@ -110,7 +104,7 @@
 		offset = 0,
 		group,
 		triggerBy = 'click',
-		sizing = 'none' as 'none' | 'match' | 'expand' | `${number}%` | number,
+		sizing = 'none' as 'none' | 'match' | 'expand' | `${number}%`,
 		viewportMargin = 8,
 		portal = false,
 		classes = {} as { root?: string; box?: string },
@@ -120,52 +114,26 @@
 		...restProps
 	}: Props = $props();
 
+	let popoverEl = $state<HTMLElement | null>(null);
+	const uidStr = uid();
+	const anchorName = `--popover-anchor-${uidStr}`;
+	const popoverId = `popover-${uidStr}`;
 	const declaredSide = $derived(placement.split('-')[0] as Side);
-
-	// Autoplacement under a sizing mode: the clamp stops the box from ever overflowing,
-	// so the native overflow-flip never fires. Instead we flip the *side* in JS when the
-	// declared side is genuinely cramped — declared-side preference, <select>-style.
-	// MIN_SIZE is the minimum usable main-axis space (px) before we look to flip; the
-	// flip only happens if the opposite side is actually roomier (never into a smaller
-	// side). Flipping swaps the placement class, which reuses every per-placement rule
-	// (position-area, margins, match/expand fill) for the opposite side — no extra CSS.
+	// MIN_SIZE is the minimum usable main-axis space (px) on the declared side before
+	// we even consider flipping. It's the threshold in the `cramped` test and earns
+	// its keep three ways (match/expand only — none/percent don't run this flip):
+	//   1. Declared-side preference: we stay on the requested side while it has ≥144px,
+	//      flipping only when truly tight — not just because the other side is bigger.
+	//   2. Predictable placement: prevents "biggest side wins" churn, so a side with
+	//      ample room isn't abandoned the instant the opposite side edges ahead.
+	//   3. Flicker damping: acts as a buffer near equal gaps (anchor ~centered while
+	//      scrolling/resizing) so sub-pixel changes can't oscillate the flip.
+	// The flip still only fires when the opposite side is actually roomier (never into
+	// a smaller side).
 	const MIN_SIZE = 144;
-	const DEFAULT_VIEWPORT_RATIO = 0.75;
-	function toViewportRatio(value: `${number}%` | number | undefined): number {
-		if (value === undefined || value === null) return DEFAULT_VIEWPORT_RATIO;
-		if (typeof value === 'number') {
-			if (!Number.isFinite(value)) return DEFAULT_VIEWPORT_RATIO;
-			return value > 1 ? Math.min(value / 100, 1) : Math.max(Math.min(value, 1), 0);
-		}
-		const raw = value.trim();
-		const isPercent = raw.endsWith('%');
-		const parsed = parseFloat(isPercent ? raw.slice(0, -1) : raw);
-		if (!Number.isFinite(parsed)) return DEFAULT_VIEWPORT_RATIO;
-		const ratio = isPercent ? parsed / 100 : parsed;
-		return ratio > 1 ? Math.min(ratio / 100, 1) : Math.max(Math.min(ratio, 1), 0);
-	}
-	// `sizing` may itself be a ratio (e.g. '75%' or 0.75). If so we treat the explicit
-	// modes ('match'/'expand'/'none') as unset and derive the viewport ratio from the
-	// sizing value; otherwise the ratio is the default. `sizingMode` normalizes to the
-	// three canonical modes for internal checks.
 	const sizingMode = $derived.by(() =>
-		typeof sizing === 'string' && (sizing === 'none' || sizing === 'match' || sizing === 'expand')
-			? sizing
-			: 'none'
+		sizing === 'none' || sizing === 'match' || sizing === 'expand' ? sizing : 'none'
 	);
-
-	const viewportRatioValue = $derived.by(() => {
-		if (typeof sizing === 'number' || (typeof sizing === 'string' && sizing.trim().endsWith('%'))) {
-			return toViewportRatio(sizing as `${number}%` | number);
-		}
-		return DEFAULT_VIEWPORT_RATIO;
-	});
-	const flipSide: Record<Side, Side> = {
-		top: 'bottom',
-		bottom: 'top',
-		left: 'right',
-		right: 'left'
-	};
 	let sizeFlip = $state(false);
 	const effectivePlacement = $derived<Placement>(
 		autoPlacement && sizingMode !== 'none' && sizeFlip
@@ -173,12 +141,10 @@
 					(placement.includes('-') ? placement.slice(placement.indexOf('-')) : '')) as Placement)
 			: placement
 	);
-
-	// Gates the transitioning Popover Box until the side has been measured from the
+	// measured gates the transitioning Popover Box until the side has been measured from the
 	// actually-rendered popover position. Without this, the intro transition plays from
 	// declaredSide for one frame after a CSS flip.
 	let measured = $state(false);
-
 	// In a sizing mode WE own the flip (no CSS position-try), so the rendered side is
 	// exactly effectivePlacement's side — derive it directly so the arrow's side moves
 	// in the same reactive flush as the box's position (no transient wrong-side arrow on
@@ -197,7 +163,15 @@
 	);
 	const showArrow = $derived(arrowSize !== null);
 	const viewportConstraint = $derived.by(() => {
-		const pct = viewportRatioValue * 100;
+		// Only an explicit percent sizing caps the box. `none` leaves it
+		// natural-content-sized (no inline cap); `match`/`expand` cap via the CSS
+		// `stretch` clamps (main axis → anchor→viewport-edge gap) — an inline vh/vw
+		// cap here would OVERRIDE that stretch (inline beats the stylesheet) and let
+		// the box overshoot the gap, so emit nothing and let the CSS own the sizing.
+		if (!sizing.endsWith('%')) return '';
+		const parsed = parseFloat(sizing);
+		if (!Number.isFinite(parsed)) return '';
+		const pct = Math.max(0, Math.min(100, parsed));
 		// Apply both constraints so popovers on any side cannot exceed the
 		// specified viewport fraction in either dimension. This prevents left/right
 		// popovers from growing too wide when a percent sizing is used.
@@ -214,35 +188,21 @@
 	let boxEl = $state<HTMLElement | null>(null);
 	let present = $state(false); // box is in the DOM (open OR an outro still playing)
 	let introPlayed = false;
-	let currentAnim: Animation | null = null;
-	let animDir: 'in' | 'out' | null = null; // direction of the in-flight animation
+	let playState: PlayState = { currentAnim: null, animDir: null };
 
 	// Focus management (click trigger only — moving focus on a hover tooltip would
-	// be disruptive). On open we move focus into the box and remember the previously
-	// focused element; on close we restore it, but only if focus is still inside the
-	// popover (don't yank focus if the user already moved it elsewhere).
-	let prevFocus: HTMLElement | null = null;
+	// be disruptive). On open, focus the first input in the box so click-opened
+	// forms are immediately typeable. Boxes without an input are left untouched.
 	function focusIntoBox() {
 		if (triggerBy !== 'click' || !boxEl) return;
-		prevFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-		const focusable = boxEl.querySelector<HTMLElement>(
-			'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-		);
-		(focusable ?? boxEl).focus();
-	}
-	function restoreFocus() {
-		if (triggerBy !== 'click') return;
-		const active = document.activeElement;
-		const inside = !active || active === document.body || (boxEl?.contains(active) ?? false);
-		if (inside) prevFocus?.focus?.();
-		prevFocus = null;
+		boxEl.querySelector<HTMLInputElement>('input:not([disabled])')?.focus();
 	}
 
 	// Unmount + hide immediately, cancelling any in-flight animation.
 	function closeNow() {
-		currentAnim?.cancel();
-		currentAnim = null;
-		animDir = null;
+		playState.currentAnim?.cancel();
+		playState.currentAnim = null;
+		playState.animDir = null;
 		present = false;
 		measured = false;
 		introPlayed = false;
@@ -256,13 +216,12 @@
 	$effect(() => {
 		if (open) {
 			if (!present) present = true;
-			else if (animDir === 'out' && boxEl) play(boxEl, 'in');
+			else if (playState.animDir === 'out' && boxEl) play(boxEl, 'in', transition, playState);
 		} else if (present) {
-			restoreFocus();
 			// transitionOut plays the outro before unmounting; otherwise (and when there's
 			// nothing measured to animate yet) close immediately.
 			if (transitionOut && measured && boxEl) {
-				play(boxEl, 'out', closeNow);
+				play(boxEl, 'out', transition, playState, closeNow);
 			} else {
 				closeNow();
 			}
@@ -309,9 +268,10 @@
 			};
 		}
 
-		/* Click: toggle on anchor click. The window pointerdown handler that closes on
-		   outside clicks early-returns for clicks on the anchor (target.contains), so
-		   the open-toggle here and the outside-close don't fight. */
+		/* 	Click: toggle on anchor click. The window pointerdown handler that closes on
+				outside clicks early-returns for clicks on the anchor (target.contains), so
+				the open-toggle here and the outside-close don't fight
+		*/
 		if (triggerBy === 'click') {
 			const onAnchorClick = () => (open = !open);
 			anchor.addEventListener('click', onAnchorClick);
@@ -321,87 +281,6 @@
 
 	// Converts a computed box-shadow value to a CSS filter: drop-shadow() list.
 	// drop-shadow() takes "x y blur color" with no spread radius.
-	function boxShadowToFilter(boxShadow: string): string {
-		if (!boxShadow || boxShadow === 'none') return '';
-		return boxShadow
-			.split(/,(?![^(]*\))/)
-			.map((s) => {
-				s = s.trim();
-				// Extract color (function call or hex); remaining tokens are lengths
-				const colorMatch = s.match(/[a-z]+\([^)]*\)|#[\da-fA-F]{3,8}/i);
-				if (!colorMatch) return '';
-				const color = colorMatch[0];
-				const lengths = s.replace(color, '').trim().split(/\s+/).filter(Boolean);
-				if (lengths.length < 2) return '';
-				// lengths: [x, y, blur?, spread?] — spread (index 3) is intentionally ignored
-				const [x, y, blur = '0'] = lengths;
-				return `drop-shadow(${x} ${y} ${blur} ${color})`;
-			})
-			.filter(Boolean)
-			.join(' ');
-	}
-
-	// Plays a Svelte TransitionConfig via the Web Animations API. Svelte normally
-	// samples a transition's css(t,u) over its own timeline and applies it each
-	// frame; we do that sampling ourselves into WAAPI keyframes so the intro/outro
-	// can run on a single persistent element on demand (rather than on element
-	// create/destroy, which would force the children to re-mount). The outro
-	// replays the intro keyframes in reverse — correct for symmetric transitions
-	// (fade/fly/slide/scale and the default compose).
-	function camel(prop: string): string {
-		return prop.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-	}
-	function declToKeyframe(decl: string, offset: number): Keyframe {
-		const kf: Record<string, string | number> = { offset };
-		for (const part of decl.split(';')) {
-			const i = part.indexOf(':');
-			if (i === -1) continue;
-			const prop = part.slice(0, i).trim();
-			const val = part.slice(i + 1).trim();
-			if (prop && val) kf[camel(prop)] = val;
-		}
-		return kf as Keyframe;
-	}
-	function play(node: HTMLElement, dir: 'in' | 'out', onDone?: () => void) {
-		// Cancelling does NOT fire onfinish, so a superseded animation's onDone
-		// (e.g. an interrupted outro) never runs.
-		currentAnim?.cancel();
-		animDir = dir;
-		const cfg = transition(node, {});
-		// tick-only transitions can't be expressed as WAAPI keyframes; skip the
-		// animation but still resolve so the lifecycle (unmount/hide) completes.
-		if (!cfg.css) {
-			currentAnim = null;
-			animDir = null;
-			onDone?.();
-			return;
-		}
-		const ease = cfg.easing ?? ((t: number) => t);
-		const steps = 30;
-		const frames: Keyframe[] = [];
-		for (let i = 0; i <= steps; i++) {
-			// Svelte calls css(eased_t, 1 - eased_t); bake the easing into the samples
-			// so WAAPI can play them linearly.
-			const t = ease(i / steps);
-			frames.push(declToKeyframe(cfg.css(t, 1 - t), i / steps));
-		}
-		const anim = node.animate(frames, {
-			duration: Math.max(1, cfg.duration ?? 400),
-			delay: cfg.delay ?? 0,
-			easing: 'linear', // easing already sampled into the frames above
-			direction: dir === 'out' ? 'reverse' : 'normal',
-			fill: 'both'
-		});
-		currentAnim = anim;
-		anim.onfinish = () => {
-			if (currentAnim === anim) {
-				currentAnim = null;
-				animDir = null;
-			}
-			anim.cancel();
-			onDone?.();
-		};
-	}
 
 	function attachAnchor(el: HTMLElement) {
 		const target = anchorEl ? document.getElementById(anchorEl) : el.previousElementSibling;
@@ -419,10 +298,8 @@
 			return popoverEvents(target, el);
 		});
 
-		$effect(() => openEvents());
+		$effect(() => syncPopoverOpenState());
 
-		// Anchor ↔ popover ARIA wiring (click trigger only; hover popovers are
-		// description-style and shouldn't claim expand/controls semantics).
 		$effect(() => {
 			if (!(target instanceof HTMLElement) || triggerBy !== 'click') return;
 			target.setAttribute('aria-controls', popoverId);
@@ -542,7 +419,7 @@
 			// (post-flip) side. The box is already mounted, so children are not re-created.
 			if (measured && boxEl && !introPlayed) {
 				introPlayed = true;
-				play(boxEl, 'in');
+				play(boxEl, 'in', transition, playState);
 				focusIntoBox();
 			}
 
@@ -551,7 +428,7 @@
 			// resize. The popover itself stays attached via CSS anchor positioning, so
 			// this only updates our discrete side decision (browser flip / sizing-mode
 			// flip) and the arrow. A scroll burst is throttled to one rAF — idle popovers
-			// do no work (vs. the old permanent per-frame rAF loop). The arrow offset is
+			// do no work. The arrow offset is
 			// scroll-invariant, so reposition it only when the side actually flips
 			// (per-frame writes jittered it as the popover's rect lagged the scroll).
 			let rafId = 0;
@@ -618,7 +495,7 @@
 		};
 	}
 
-	function openEvents() {
+	function syncPopoverOpenState() {
 		if (open) {
 			if (!popoverEl) return;
 			if (!popoverEl.matches(':popover-open')) {
@@ -696,9 +573,9 @@
 >
 	{#if present}
 		<!-- One persistent box. Mounted (hidden, via the parent's visibility:hidden)
-			 before measurement so position-area can resolve and we can read the
-			 rendered side; revealed and animated via WAAPI once measured (see play()).
-			 Children render exactly once per open. -->
+					before measurement so position-area can resolve and we can read the
+					rendered side; revealed and animated via WAAPI once measured (see play()).
+					Children render exactly once per open. -->
 		<div
 			bind:this={boxEl}
 			data-popover-box
@@ -723,8 +600,8 @@
 		overflow: clip;
 		filter: var(--popover-drop-shadow, none);
 		/* combines user gap + arrow clearance. arrow is a 45° rotated square of side
-		   --arrow-size centered on the box edge, so it protrudes by half its diagonal
-		   ≈ 0.707 × --arrow-size. */
+				--arrow-size centered on the box edge, so it protrudes by half its diagonal
+		   	≈ 0.707 × --arrow-size. */
 		--popover-offset: calc(var(--popover-gap, 0px) + var(--arrow-size, 0px) * 0.707);
 
 		&[data-arrow] {
@@ -1025,15 +902,15 @@
 	}
 
 	/* expand: cross axis fills to the viewport edge (instead of matching the anchor);
-	   main axis caps to the anchor→edge gap, same as match-size.
-	   BOTH axes use the `stretch` SIZE keyword, not `*-self: stretch` ALIGNMENT —
-	   alignment-stretch does not reliably fill a position-area region: it left short
-	   content collapsed to content size, and on span-left/span-top regions it parked
-	   the box at the FAR viewport edge, detached from the anchor (broke top-end/
-	   bottom-end). So park the box at the region start and size it with the keyword:
-	     • top/bottom (cross = inline) → justify-self: start; width: stretch
-	     • left/right  (cross = block)  → align-self: start;  height: stretch
-	   (The flex-bound rule below then fills the Box within the sized root.) */
+			main axis caps to the anchor→edge gap, same as match-size.
+			BOTH axes use the `stretch` SIZE keyword, not `*-self: stretch` ALIGNMENT —
+			alignment-stretch does not reliably fill a position-area region: it left short
+			content collapsed to content size, and on span-left/span-top regions it parked
+			the box at the FAR viewport edge, detached from the anchor (broke top-end/
+			bottom-end). So park the box at the region start and size it with the keyword:
+				• top/bottom (cross = inline) → justify-self: start; width: stretch
+				• left/right  (cross = block)  → align-self: start;  height: stretch
+	   	(The flex-bound rule below then fills the Box within the sized root.) */
 	:is(
 		.placement-top,
 		.placement-top-start,
@@ -1060,11 +937,12 @@
 	}
 
 	/* The aligned (-start/-end) variants already span from the anchor's near edge to
-	   a viewport edge, so they fill correctly from the `stretch` above. Centered
-	   placements only span the anchor's cross extent, so widen them to the SAME span
-	   as their -start variant (anchor near-edge → far viewport edge) and add the
-	   matching far-edge margin. The fill is anchored to the trigger and grows toward
-	   the far edge — it is not symmetric across the viewport. */
+			a viewport edge, so they fill correctly from the `stretch` above. Centered
+			placements only span the anchor's cross extent, so widen them to the SAME span
+			as their -start variant (anchor near-edge → far viewport edge) and add the
+			matching far-edge margin. The fill is anchored to the trigger and grows toward
+			the far edge — it is not symmetric across the viewport.
+	*/
 	.placement-left.expand,
 	.placement-right.expand {
 		inset-area: var(--expand-inset); /* Chrome 125–128 */
@@ -1091,11 +969,12 @@
 	}
 
 	/* match-size always gives the Box a bounded HEIGHT (top/bottom clamp it via
-	   `stretch`; left/right pin it to the anchor); expand likewise bounds height
-	   (top/bottom cap the main axis, left/right fill the cross axis). Flex-bound the
-	   Box so consumer content with `overflow-y: auto` scrolls within the bound
-	   instead of spilling. The Box stays visible so the arrow shows; the consumer's
-	   scroll container is inside it. */
+			`stretch`; left/right pin it to the anchor); expand likewise bounds height
+			(top/bottom cap the main axis, left/right fill the cross axis). Flex-bound the
+			Box so consumer content with `overflow-y: auto` scrolls within the bound
+			instead of spilling. The Box stays visible so the arrow shows; the consumer's
+			scroll container is inside it
+	*/
 	:is(.match-size, .expand) {
 		display: flex;
 		flex-direction: column;
