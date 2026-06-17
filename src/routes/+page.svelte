@@ -9,7 +9,7 @@
 	import { fade, fly, slide, scale } from 'svelte/transition';
 	import type { TransitionConfig } from 'svelte/transition';
 	import Controls, { type TransitionKey } from './Controls.svelte';
-	import { tooltip } from '$lib/components/Tooltip/tooltip';
+	import { tooltip } from '$lib/attachments/tooltip';
 
 	/* 	let open = $state(false); */
 

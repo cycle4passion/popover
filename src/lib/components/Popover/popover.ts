@@ -1,6 +1,6 @@
 import { fly, scale, slide } from 'svelte/transition';
-import { flyfrom } from '$lib/components/Popover/flyfrom';
-import { slidefrom } from '$lib/components/Popover/slidefrom';
+import { flyfrom } from '$lib/transitions/flyfrom';
+import { slidefrom } from '$lib/transitions/slidefrom';
 import {
 	composeTransitions,
 	normaliseEntries,

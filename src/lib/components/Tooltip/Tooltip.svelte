@@ -55,6 +55,7 @@
 		classes,
 		triggerBy = 'hover',
 		autoPlacement = true,
+		sizing = '30%',
 		arrow = true,
 		placement = 'top',
 		group = '',
@@ -67,6 +68,7 @@
 	{triggerBy}
 	{autoPlacement}
 	{arrow}
+	{sizing}
 	{placement}
 	{group}
 	classes={{ box: classname, ...classes }}

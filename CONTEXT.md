@@ -66,4 +66,3 @@ A named set of **Popovers** that open and close together. Anchors and members sh
 ## Flagged ambiguities
 
 - "trigger" historically meant both the **Anchor** element and the interaction style — resolved: **Anchor** is the element, **Trigger** is the interaction (`triggerBy` prop name).
-- "arrow" used to refer to a separate `Arrow.svelte` SVG component — resolved: the **Arrow** is a CSS pseudo-element on the **Popover Box**; there is no separate component.

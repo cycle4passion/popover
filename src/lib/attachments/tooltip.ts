@@ -1,6 +1,6 @@
 import { mount, unmount, type ComponentProps } from 'svelte';
 import type { Attachment } from 'svelte/attachments';
-import Tooltip from './Tooltip.svelte';
+import Tooltip from '../components/Tooltip/Tooltip.svelte';
 
 /**
  * Props accepted by the {@link tooltip} attachment — every prop `Tooltip.svelte`
