@@ -32,8 +32,8 @@
 		offset?: number;
 		/** Tooltips sharing a group name open and close together. */
 		group?: string;
-		/** What interaction opens the tooltip. @default 'hover' */
-		triggerBy?: TriggerBy;
+		/** What interaction opens the tooltip. @default ['hover', 'focus'] */
+		triggerBy?: TriggerBy | TriggerBy[];
 		/** Sizing mode, or a viewport-fraction cap. @default 'none' */
 		sizing?: 'none' | 'match' | 'expand' | `${number}%`;
 		/** Minimum margin in pixels between the tooltip and the viewport edge. @default 8 */
@@ -53,7 +53,7 @@
 		class: classname = 'px-4 py-2 text-white bg-black border-2 border-red-500 rounded-full',
 		children,
 		classes,
-		triggerBy = 'hover',
+		triggerBy = ['hover', 'focus'],
 		autoPlacement = true,
 		sizing = '30%',
 		arrow = true,

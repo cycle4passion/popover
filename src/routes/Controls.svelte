@@ -17,6 +17,7 @@
 		arrow?: boolean;
 		arrowSize?: ArrowSize;
 		longContent?: boolean;
+		manualOpen?: boolean;
 		transitionKey?: TransitionKey;
 		transitionOut?: boolean;
 		transitionKeys: readonly TransitionKey[];
@@ -35,6 +36,7 @@
 		arrow = $bindable(true),
 		arrowSize = $bindable<ArrowSize>('md'),
 		longContent = $bindable(false),
+		manualOpen = $bindable(false),
 		transitionKey = $bindable<TransitionKey>('default'),
 		transitionOut = $bindable(false),
 		transitionKeys,
@@ -48,8 +50,8 @@
 	data-popover-ignore
 >
 	<!-- Trigger -->
-	<div class="flex gap-1 rounded-xl bg-white p-1 shadow ring-1 ring-black/10">
-		{#each ['click', 'hover'] as t (t)}
+	<div class="flex items-center gap-1 rounded-xl bg-white p-1 shadow ring-1 ring-black/10">
+		{#each ['click', 'hover', 'contextmenu', 'dblclick', 'longpress', 'focus', 'manual'] as t (t)}
 			<button
 				onclick={() => onTriggerChange(t as TriggerBy)}
 				class="rounded-lg px-4 py-2 text-sm font-medium transition-colors {triggerBy === t
@@ -59,6 +61,20 @@
 				{t}
 			</button>
 		{/each}
+		<!-- Drives `open` from outside the Popover to demo the `manual` trigger. -->
+		<label
+			class="ml-1 flex items-center gap-1.5 rounded-lg px-3 py-2 {triggerBy === 'manual'
+				? 'cursor-pointer text-gray-600'
+				: 'cursor-not-allowed text-gray-300'}"
+		>
+			<input
+				type="checkbox"
+				bind:checked={manualOpen}
+				disabled={triggerBy !== 'manual'}
+				class="accent-indigo-500"
+			/>
+			<span class="text-sm font-medium whitespace-nowrap">Open (outside control)</span>
+		</label>
 	</div>
 
 	<!-- Offset -->
@@ -74,6 +90,8 @@
 		/>
 		<span class="w-8 text-right text-sm text-gray-600 tabular-nums">{offset}px</span>
 	</div>
+
+	<ThemeSwitch />
 
 	<!-- Viewport margin -->
 	<div class="flex items-center gap-3 rounded-xl bg-white px-4 py-2 shadow ring-1 ring-black/10">
@@ -109,7 +127,6 @@
 		</label>
 	</div>
 
-	<ThemeSwitch />
 	<!-- Toggles -->
 	<div class="flex items-center gap-4 rounded-xl bg-white px-4 py-2 shadow ring-1 ring-black/10">
 		<label class="flex cursor-pointer items-center gap-1.5">
@@ -132,19 +149,6 @@
 		</label>
 
 		<label class="flex cursor-pointer items-center gap-1.5">
-			<input type="checkbox" bind:checked={portal} class="accent-emerald-500" />
-			<span class="text-sm font-medium text-gray-600">Portal</span>
-		</label>
-		<label class="flex cursor-pointer items-center gap-1.5">
-			<input
-				type="checkbox"
-				checked={grouped}
-				onchange={(e) => onGroupedChange((e.target as HTMLInputElement).checked)}
-				class="accent-blue-500"
-			/>
-			<span class="text-sm font-medium text-gray-600">Group</span>
-		</label>
-		<label class="flex cursor-pointer items-center gap-1.5">
 			<input type="checkbox" bind:checked={arrow} class="accent-amber-500" />
 			<span class="text-sm font-medium text-gray-600">Arrow</span>
 		</label>
@@ -158,6 +162,19 @@
 			<option value="md">md</option>
 			<option value="lg">lg</option>
 		</select>
+		<label class="flex cursor-pointer items-center gap-1.5">
+			<input
+				type="checkbox"
+				checked={grouped}
+				onchange={(e) => onGroupedChange((e.target as HTMLInputElement).checked)}
+				class="accent-blue-500"
+			/>
+			<span class="text-sm font-medium text-gray-600">Group</span>
+		</label>
+		<label class="flex cursor-pointer items-center gap-1.5">
+			<input type="checkbox" bind:checked={portal} class="accent-emerald-500" />
+			<span class="text-sm font-medium text-gray-600">Portal</span>
+		</label>
 		<label class="flex cursor-pointer items-center gap-1.5">
 			<input type="checkbox" bind:checked={longContent} class="accent-fuchsia-500" />
 			<span class="text-sm font-medium text-gray-600">Long content</span>

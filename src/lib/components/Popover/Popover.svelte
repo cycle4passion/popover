@@ -5,7 +5,14 @@
 	export type TransitionFn = (node: Element, params?: Record<string, unknown>) => TransitionConfig;
 	export type Side = 'top' | 'bottom' | 'left' | 'right';
 	export type Placement = Side | `${Side}-${'start' | 'end'}`;
-	export type TriggerBy = 'click' | 'hover';
+	export type TriggerBy =
+		| 'click'
+		| 'hover'
+		| 'contextmenu'
+		| 'dblclick'
+		| 'longpress'
+		| 'focus'
+		| 'manual';
 	export type ArrowSize = 'sm' | 'md' | 'lg';
 
 	type Props = {
@@ -23,8 +30,14 @@
 		offset?: number;
 		/** Popovers sharing the same group name open and close together. */
 		group?: string;
-		/** What interaction opens the popover. @default 'click' */
-		triggerBy?: TriggerBy;
+		/**
+		 * What interaction opens the popover. Pass a single trigger or an array to
+		 * combine several (e.g. `['hover', 'focus']` for an accessible tooltip).
+		 * `'manual'` registers no listeners and disables outside-click/Escape closing
+		 * — the consumer drives visibility purely via `bind:open`.
+		 * @default 'click'
+		 */
+		triggerBy?: TriggerBy | TriggerBy[];
 		/**
 		 * Sizing mode. Both `'match'` and `'expand'` pin the side (disable autoplacement
 		 * flipping) and only CONSTRAIN the box — your content owns scrolling (set
@@ -92,6 +105,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { portal as attachPortal, type PortalOptions } from '$lib/attachments/portal';
+	import { longpress } from '$lib/attachments/longpress';
 	import { normalizeTransition, uid, boxShadowToFilter, play, type PlayState } from './popover';
 	import { cls } from '@layerstack/tailwind';
 
@@ -113,6 +127,13 @@
 		children,
 		...restProps
 	}: Props = $props();
+
+	// Normalize the trigger prop to a list so single and array forms share one path.
+	const triggers = $derived<TriggerBy[]>(Array.isArray(triggerBy) ? triggerBy : [triggerBy]);
+	// Passive triggers (hover / focus) keep the popover open while the pointer is
+	// over OR focus is within the anchor/popover, and must not steal focus on open.
+	const hasPassive = $derived(triggers.includes('hover') || triggers.includes('focus'));
+	const isManual = $derived(triggers.includes('manual'));
 
 	let popoverEl = $state<HTMLElement | null>(null);
 	const uidStr = uid();
@@ -194,7 +215,7 @@
 	// be disruptive). On open, focus the first input in the box so click-opened
 	// forms are immediately typeable. Boxes without an input are left untouched.
 	function focusIntoBox() {
-		if (triggerBy !== 'click' || !boxEl) return;
+		if (hasPassive || !boxEl) return;
 		boxEl.querySelector<HTMLInputElement>('input:not([disabled])')?.focus();
 	}
 
@@ -229,54 +250,107 @@
 	});
 
 	function popoverEvents(anchor: HTMLElement, el: HTMLElement) {
-		/* Hover Related Events */
-		if (triggerBy === 'hover') {
+		const cleanups: Array<() => void> = [];
+
+		/* 	Passive triggers (hover / focus) share one interest tracker: the popover stays
+				open while the pointer is over OR focus is within either the anchor or the
+				popover, and closes (after a short grace period) once all interest is gone.
+				The grace period lets the pointer/focus travel from the anchor into the
+				popover without flicker, and lets hover + focus coexist (unhovering a
+				still-focused tooltip keeps it open). */
+		const passive = triggers.filter((t) => t === 'hover' || t === 'focus');
+		if (passive.length) {
 			let closeTimer: ReturnType<typeof setTimeout> | undefined;
+			let overAnchor = false;
+			let overPopover = false;
+			let focusAnchor = false;
+			let focusPopover = false;
 
-			function onAnchorEnter() {
+			const sync = () => {
 				clearTimeout(closeTimer);
-				open = true;
-			}
-
-			function onAnchorLeave(e: MouseEvent) {
-				if (e.relatedTarget instanceof Node && el.contains(e.relatedTarget)) return;
-				closeTimer = setTimeout(() => {
-					open = false;
-				}, 100);
-			}
-
-			function onPopoverEnter() {
-				clearTimeout(closeTimer);
-			}
-
-			function onPopoverLeave(e: MouseEvent) {
-				if (e.relatedTarget instanceof Node && anchor.contains(e.relatedTarget)) return;
-				open = false;
-			}
-
-			anchor.addEventListener('mouseenter', onAnchorEnter);
-			anchor.addEventListener('mouseleave', onAnchorLeave);
-			el.addEventListener('mouseenter', onPopoverEnter);
-			el.addEventListener('mouseleave', onPopoverLeave);
-
-			return () => {
-				clearTimeout(closeTimer);
-				anchor.removeEventListener('mouseenter', onAnchorEnter);
-				anchor.removeEventListener('mouseleave', onAnchorLeave);
-				el.removeEventListener('mouseenter', onPopoverEnter);
-				el.removeEventListener('mouseleave', onPopoverLeave);
+				if (overAnchor || overPopover || focusAnchor || focusPopover) {
+					open = true;
+				} else {
+					closeTimer = setTimeout(() => (open = false), 100);
+				}
 			};
+
+			if (passive.includes('hover')) {
+				const onAnchorEnter = () => ((overAnchor = true), sync());
+				const onAnchorLeave = () => ((overAnchor = false), sync());
+				const onPopoverEnter = () => ((overPopover = true), sync());
+				const onPopoverLeave = () => ((overPopover = false), sync());
+				anchor.addEventListener('mouseenter', onAnchorEnter);
+				anchor.addEventListener('mouseleave', onAnchorLeave);
+				el.addEventListener('mouseenter', onPopoverEnter);
+				el.addEventListener('mouseleave', onPopoverLeave);
+				cleanups.push(() => {
+					anchor.removeEventListener('mouseenter', onAnchorEnter);
+					anchor.removeEventListener('mouseleave', onAnchorLeave);
+					el.removeEventListener('mouseenter', onPopoverEnter);
+					el.removeEventListener('mouseleave', onPopoverLeave);
+				});
+			}
+
+			if (passive.includes('focus')) {
+				// focusin/focusout bubble, so listening on the anchor and popover roots
+				// catches focus moving to any descendant (e.g. a control inside the box).
+				const onAnchorFocus = () => ((focusAnchor = true), sync());
+				const onAnchorBlur = () => ((focusAnchor = false), sync());
+				const onPopoverFocus = () => ((focusPopover = true), sync());
+				const onPopoverBlur = () => ((focusPopover = false), sync());
+				anchor.addEventListener('focusin', onAnchorFocus);
+				anchor.addEventListener('focusout', onAnchorBlur);
+				el.addEventListener('focusin', onPopoverFocus);
+				el.addEventListener('focusout', onPopoverBlur);
+				cleanups.push(() => {
+					anchor.removeEventListener('focusin', onAnchorFocus);
+					anchor.removeEventListener('focusout', onAnchorBlur);
+					el.removeEventListener('focusin', onPopoverFocus);
+					el.removeEventListener('focusout', onPopoverBlur);
+				});
+			}
+
+			cleanups.push(() => clearTimeout(closeTimer));
 		}
 
-		/* 	Click: toggle on anchor click. The window pointerdown handler that closes on
-				outside clicks early-returns for clicks on the anchor (target.contains), so
-				the open-toggle here and the outside-close don't fight
-		*/
-		if (triggerBy === 'click') {
+		/* 	Active triggers just flip `open`; closing is owned by the window pointerdown
+				handler (which early-returns for clicks on the anchor) and Escape, so the
+				group cascade in syncPopoverOpenState handles members the same for each. */
+		if (triggers.includes('click')) {
 			const onAnchorClick = () => (open = !open);
 			anchor.addEventListener('click', onAnchorClick);
-			return () => anchor.removeEventListener('click', onAnchorClick);
+			cleanups.push(() => anchor.removeEventListener('click', onAnchorClick));
 		}
+
+		/* 	Context menu: right-click opens the popover, suppressing the native menu. */
+		if (triggers.includes('contextmenu')) {
+			const onContextMenu = (e: MouseEvent) => {
+				e.preventDefault();
+				open = true;
+			};
+			anchor.addEventListener('contextmenu', onContextMenu);
+			cleanups.push(() => anchor.removeEventListener('contextmenu', onContextMenu));
+		}
+
+		/* 	Double click: toggle on anchor dblclick. */
+		if (triggers.includes('dblclick')) {
+			const onAnchorDblClick = () => (open = !open);
+			anchor.addEventListener('dblclick', onAnchorDblClick);
+			cleanups.push(() => anchor.removeEventListener('dblclick', onAnchorDblClick));
+		}
+
+		/* 	Long press: press-and-hold on the anchor opens the popover. */
+		if (triggers.includes('longpress')) {
+			cleanups.push(longpress(anchor, { onlongpress: () => (open = true) }));
+		}
+
+		/* 	'manual' registers no listeners — the consumer drives `open` via bind:open,
+				and outside-click/Escape closing is disabled (see attachAnchor / onKeydown). */
+
+		return () => {
+			for (const fn of cleanups) fn();
+		};
 	}
 
 	// Converts a computed box-shadow value to a CSS filter: drop-shadow() list.
@@ -301,7 +375,7 @@
 		$effect(() => syncPopoverOpenState());
 
 		$effect(() => {
-			if (!(target instanceof HTMLElement) || triggerBy !== 'click') return;
+			if (!(target instanceof HTMLElement) || !triggers.includes('click')) return;
 			target.setAttribute('aria-controls', popoverId);
 			target.setAttribute('aria-expanded', open ? 'true' : 'false');
 			return () => {
@@ -488,9 +562,15 @@
 			}
 			open = false;
 		}
-		window.addEventListener('pointerdown', onPointerDown);
+		// Manual mode is purely consumer-controlled: skip outside-click closing so the
+		// popover stays open until `open` is set back to false. Gated in an effect so it
+		// reacts to triggerBy changing at runtime (the demo's trigger switcher).
+		$effect(() => {
+			if (isManual) return;
+			window.addEventListener('pointerdown', onPointerDown);
+			return () => window.removeEventListener('pointerdown', onPointerDown);
+		});
 		return () => {
-			window.removeEventListener('pointerdown', onPointerDown);
 			if (target instanceof HTMLElement) target.style.removeProperty('anchor-name');
 		};
 	}
@@ -533,7 +613,7 @@
 	}
 
 	function onKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape' && open) {
+		if (e.key === 'Escape' && open && !isManual) {
 			open = false;
 		}
 	}

@@ -178,6 +178,13 @@
 	let arrow = $state(true);
 	let arrowSize = $state<ArrowSize>('md');
 	let longContent = $state(false);
+	let manualOpen = $state(false);
+
+	// `manual` trigger demo: with no internal listeners, the only way to open is
+	// from outside. Mirror the Controls checkbox onto the `top` popover's open state.
+	$effect(() => {
+		if (triggerBy === 'manual') openStates['top'] = manualOpen;
+	});
 
 	/* 	const content = $derived(
 		longContent
@@ -201,6 +208,7 @@
 
 	function setTrigger(t: TriggerBy) {
 		triggerBy = t;
+		manualOpen = false;
 		for (const id of openStateKeys) openStates[id] = false;
 	}
 
@@ -247,6 +255,7 @@
 		bind:arrow
 		bind:arrowSize
 		bind:longContent
+		bind:manualOpen
 		bind:transitionKey
 		bind:transitionOut
 		transitionKeys={Object.keys(transitions) as TransitionKey[]}
@@ -269,7 +278,7 @@
 					<button
 						class={`rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 ${cell.classname}`}
 					>
-						{cell.buttonText}
+						{cell.buttonText}{#if triggerBy === 'manual' && cell.id === 'top'}<br />(manual){/if}{#if grouped && cell.id !== 'shadow' && !cell.placement.includes('-')}<br />(group){/if}
 					</button>
 
 					<Popover
@@ -303,13 +312,23 @@
 						</div>
 					</Popover>
 				</div>
+
+				<!-- Rendered right after the `left` cell so its tab order follows `left`.
+					 The grid is positioned via grid-column/row-start, so DOM order only
+					 affects tab order, not layout. -->
+				{#if cell.id === 'left'}
+					<div
+						class="flex items-center justify-center"
+						style="grid-column-start: 2; grid-row-start: 3; user-select: none;"
+					>
+						<!-- tabindex makes the tooltip trigger keyboard-focusable so the focus trigger fires -->
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+						<p tabindex="0" {@attach tooltip('I am a tooltip from an attachment')}>
+							Hover for Tooltip!
+						</p>
+					</div>
+				{/if}
 			{/each}
-			<div
-				class="flex items-center justify-center"
-				style="grid-column-start: 2; grid-row-start: 3; user-select: none;"
-			>
-				<p {@attach tooltip('I am a tooltip from an attachment')}>Hover for Tooltip!</p>
-			</div>
 		</div>
 	</div>
 </div>
