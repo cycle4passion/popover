@@ -20,6 +20,8 @@
 		anchorEl?: string;
 		/** Whether the popover is visible. Bindable. */
 		open?: boolean;
+		/** Reference to the popover root element. Bindable. */
+		ref?: HTMLElement | null;
 		/** Preferred placement relative to the anchor. May be flipped by the browser when space is constrained; the arrow follows the actual rendered side. @default 'top' */
 		placement?: Placement;
 		/** Whether to use Anchor positioning API. @default true */
@@ -112,6 +114,7 @@
 	let {
 		anchorEl,
 		open = $bindable(false),
+		ref = $bindable(null),
 		placement = 'bottom' as Placement,
 		autoPlacement = true,
 		arrow = false,
@@ -135,7 +138,6 @@
 	const hasPassive = $derived(triggers.includes('hover') || triggers.includes('focus'));
 	const isManual = $derived(triggers.includes('manual'));
 
-	let popoverEl = $state<HTMLElement | null>(null);
 	const uidStr = uid();
 	const anchorName = `--popover-anchor-${uidStr}`;
 	const popoverId = `popover-${uidStr}`;
@@ -227,7 +229,7 @@
 		present = false;
 		measured = false;
 		introPlayed = false;
-		popoverEl?.hidePopover();
+		ref?.hidePopover();
 	}
 
 	// Mount/unmount lifecycle. Opening mounts the box (the intro fires from the
@@ -577,17 +579,17 @@
 
 	function syncPopoverOpenState() {
 		if (open) {
-			if (!popoverEl) return;
-			if (!popoverEl.matches(':popover-open')) {
+			if (!ref) return;
+			if (!ref.matches(':popover-open')) {
 				if (!group) {
 					document
 						.querySelectorAll<HTMLElement>('[data-popover]:not([data-popover-group])')
 						.forEach((other) => {
-							if (other !== popoverEl && other.matches(':popover-open')) other.hidePopover();
+							if (other !== ref && other.matches(':popover-open')) other.hidePopover();
 						});
 				}
 
-				popoverEl.showPopover();
+				ref.showPopover();
 
 				if (group) {
 					document
@@ -595,18 +597,18 @@
 							`[data-popover][data-popover-group="${CSS.escape(group)}"]`
 						)
 						.forEach((member) => {
-							if (member !== popoverEl && !member.matches(':popover-open')) member.showPopover();
+							if (member !== ref && !member.matches(':popover-open')) member.showPopover();
 						});
 				}
 			}
 		} else {
-			if (popoverEl && group) {
+			if (ref && group) {
 				document
 					.querySelectorAll<HTMLElement>(
 						`[data-popover][data-popover-group="${CSS.escape(group)}"]`
 					)
 					.forEach((member) => {
-						if (member !== popoverEl && member.matches(':popover-open')) member.hidePopover();
+						if (member !== ref && member.matches(':popover-open')) member.hidePopover();
 					});
 			}
 		}
@@ -621,7 +623,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 <div
-	bind:this={popoverEl}
+	bind:this={ref}
 	id={popoverId}
 	data-popover
 	data-popover-group={group || undefined}
