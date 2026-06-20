@@ -274,7 +274,9 @@
 
 					<Popover
 						bind:open={openStates[cell.id]}
-						group={grouped && !cell.placement.includes('-') ? 'demo' : undefined}
+						group={grouped && cell.id !== 'shadow' && !cell.placement.includes('-')
+							? 'demo'
+							: undefined}
 						placement={cell.placement}
 						{autoPlacement}
 						{offset}
@@ -302,7 +304,10 @@
 					</Popover>
 				</div>
 			{/each}
-			<div class="flex items-center justify-center" style="grid-column-start: 2; grid-row-start: 3">
+			<div
+				class="flex items-center justify-center"
+				style="grid-column-start: 2; grid-row-start: 3; user-select: none;"
+			>
 				<p {@attach tooltip('I am a tooltip from an attachment')}>Hover for Tooltip!</p>
 			</div>
 		</div>
