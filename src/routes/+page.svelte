@@ -38,7 +38,7 @@
 			row: 1,
 			buttonText: 'top-start',
 			content: 'Content',
-			classname: 'flex justidy-center bg-red-500 px-6 py-6'
+			classname: 'flex justify-center bg-red-500 px-6 py-6'
 		},
 		{
 			id: 'top',
@@ -94,7 +94,7 @@
 			id: 'shadow',
 			placement: 'top',
 			align: 'justify-center',
-			col: 3,
+			col: 4,
 			row: 3,
 			buttonText: 'shadow',
 			content: 'shadow-2xl also on Popover/Arrow',
@@ -211,9 +211,27 @@
 
 	onMount(() => {
 		// Center the grid in the viewport so the user can scroll equally in every direction.
-		const x = (document.documentElement.scrollWidth - window.innerWidth) / 2;
-		const y = (document.documentElement.scrollHeight - window.innerHeight) / 2;
-		window.scrollTo({ left: x, top: y });
+		// The scroll surface is sized in vw/vh, so its scrollable area changes with the
+		// viewport. Re-center on resize so the grid doesn't drift off-centre.
+		const recenter = () => {
+			const x = (document.documentElement.scrollWidth - window.innerWidth) / 2;
+			const y = (document.documentElement.scrollHeight - window.innerHeight) / 2;
+			window.scrollTo({ left: x, top: y });
+		};
+
+		recenter();
+
+		let raf = 0;
+		const onResize = () => {
+			cancelAnimationFrame(raf);
+			raf = requestAnimationFrame(recenter);
+		};
+		window.addEventListener('resize', onResize);
+
+		return () => {
+			cancelAnimationFrame(raf);
+			window.removeEventListener('resize', onResize);
+		};
 	});
 </script>
 
@@ -284,7 +302,9 @@
 					</Popover>
 				</div>
 			{/each}
-			<p {@attach tooltip('I am a tooltip from an attachment')} class="bg-blue-500">Hello!</p>
+			<div class="flex items-center justify-center" style="grid-column-start: 2; grid-row-start: 3">
+				<p {@attach tooltip('I am a tooltip from an attachment')}>Hover for Tooltip!</p>
+			</div>
 		</div>
 	</div>
 </div>
