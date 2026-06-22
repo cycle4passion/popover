@@ -1,6 +1,6 @@
 import { on } from 'svelte/events';
 
-interface LongpressOptions {
+export interface LongpressOptions {
 	/** How long (ms) the pointer must stay down before firing. @default 500 */
 	duration?: number;
 	/** Called once the press has been held for `duration`. */
@@ -10,7 +10,8 @@ interface LongpressOptions {
 /**
  * Fires `onlongpress` when the pointer is pressed and held on `node` for
  * `duration` ms. The timer is cancelled if the pointer is released
- * (`pointerup`) or interrupted (`pointercancel`) before then. Works for mouse,
+ * (`pointerup`), interrupted (`pointercancel`), or leaves the element
+ * (`pointerleave`) before then. Works for mouse,
  * touch, and pen via Pointer Events.
  *
  * Note: it does NOT call `preventDefault()`, so on touch the OS text-selection
@@ -41,20 +42,34 @@ interface LongpressOptions {
  * // Inside an $effect, so it re-runs and re-cleans when deps change:
  * $effect(() => longpress(anchor, { duration, onlongpress: () => (open = true) }));
  */
+
 export function longpress(
 	node: HTMLElement,
 	{ duration = 500, onlongpress }: LongpressOptions = {}
 ) {
 	let timer: ReturnType<typeof setTimeout>;
+	let fired = false;
 
 	const cleanup = [
 		on(node, 'pointerdown', () => {
+			if (fired) return;
 			timer = setTimeout(() => {
+				fired = true;
 				onlongpress?.();
 			}, duration);
 		}),
-		on(node, 'pointerup', () => clearTimeout(timer)),
-		on(node, 'pointercancel', () => clearTimeout(timer))
+		on(node, 'pointerup', () => {
+			fired = false;
+			clearTimeout(timer);
+		}),
+		on(node, 'pointercancel', () => {
+			fired = false;
+			clearTimeout(timer);
+		}),
+		on(node, 'pointerleave', () => {
+			fired = false;
+			clearTimeout(timer);
+		})
 	];
 
 	return () => {
